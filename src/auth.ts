@@ -1,7 +1,8 @@
 import NextAuth from "next-auth";
+import Google from "next-auth/providers/google";
+import Credentials from "next-auth/providers/credentials";
 import { getUserByEmail, createUser } from "@/lib/db";
 import { scryptSync, randomBytes, timingSafeEqual } from "crypto";
-import authConfig from "./auth.config";
 
 /**
  * Hash password using scrypt (OWASP recommended).
@@ -29,59 +30,85 @@ function verifyPassword(password: string, storedHash: string, salt: string): boo
 }
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
-  ...authConfig,
   providers: [
-    // Override providers to add actual authorize logic
-    ...authConfig.providers.map((provider) => {
-      if (provider.id === "credentials") {
-        return {
-          ...provider,
-          authorize: async (credentials: Record<string, unknown> | undefined) => {
-            if (!credentials?.email || !credentials?.password) {
+    Google({
+      clientId: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    }),
+    Credentials({
+      name: "credentials",
+      credentials: {
+        email: { label: "Email", type: "email" },
+        password: { label: "Password", type: "password" },
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) {
+          console.log("[AUTH] Credentials missing");
+          return null;
+        }
+
+        const email = (credentials.email as string).toLowerCase().trim();
+        const password = credentials.password as string;
+
+        console.log("[AUTH] Attempting login for:", email);
+
+        // Check if user exists
+        const existingUser = await getUserByEmail(email);
+
+        if (existingUser) {
+          // Check if this is an OAuth-only user (placeholder password)
+          if (existingUser.password_hash.length === 64 && existingUser.password_salt.length === 64) {
+            // This is likely an OAuth user (placeholder is 32 bytes = 64 hex chars)
+            // Try to verify anyway in case it's a real password
+            const isValid = verifyPassword(password, existingUser.password_hash, existingUser.password_salt);
+            if (!isValid) {
+              console.log("[AUTH] OAuth user trying password login or wrong password");
               return null;
             }
-
-            const email = (credentials.email as string).toLowerCase().trim();
-            const password = credentials.password as string;
-
-            // Check if user exists
-            const existingUser = await getUserByEmail(email);
-
-            if (existingUser) {
-              // Verify password for existing user
-              if (!verifyPassword(password, existingUser.password_hash, existingUser.password_salt)) {
-                return null;
-              }
-
-              return {
-                id: existingUser.id,
-                email: existingUser.email,
-                name: existingUser.email.split("@")[0],
-              };
-            }
-
-            // Create new user (first-time registration)
-            const newUserId = randomBytes(16).toString("hex");
-            const { hash, salt } = hashPassword(password);
-
-            try {
-              await createUser(newUserId, email, hash, salt);
-
-              return {
-                id: newUserId,
-                email: email,
-                name: email.split("@")[0],
-              };
-            } catch (error) {
-              console.error("Failed to create user:", error);
+          } else {
+            // Verify password for existing user
+            if (!verifyPassword(password, existingUser.password_hash, existingUser.password_salt)) {
+              console.log("[AUTH] Invalid password for:", email);
               return null;
             }
-          },
-        };
-      }
-      return provider;
+          }
+
+          console.log("[AUTH] Login successful for:", email);
+          return {
+            id: existingUser.id,
+            email: existingUser.email,
+            name: existingUser.email.split("@")[0],
+          };
+        }
+
+        // Create new user (first-time registration)
+        console.log("[AUTH] Creating new user:", email);
+        const newUserId = randomBytes(16).toString("hex");
+        const { hash, salt } = hashPassword(password);
+
+        try {
+          await createUser(newUserId, email, hash, salt);
+          console.log("[AUTH] User created successfully:", email);
+
+          return {
+            id: newUserId,
+            email: email,
+            name: email.split("@")[0],
+          };
+        } catch (error) {
+          console.error("[AUTH] Failed to create user:", error);
+          return null;
+        }
+      },
     }),
   ],
+  pages: {
+    signIn: "/login",
+  },
+  session: {
+    strategy: "jwt",
+    maxAge: 7 * 24 * 60 * 60, // 7 days
+  },
   callbacks: {
     async signIn({ user, account }) {
       console.log("[AUTH] signIn callback:", { provider: account?.provider, email: user.email });
@@ -99,6 +126,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             const placeholder = randomBytes(32).toString("hex");
             await createUser(newUserId, email, placeholder, placeholder);
             console.log("[AUTH] Created new user for Google OAuth");
+            // Set the user id for the JWT callback
+            user.id = newUserId;
+          } else {
+            // Set the user id from database for the JWT callback
+            user.id = existingUser.id;
           }
         } catch (error) {
           console.error("[AUTH] Error in signIn callback:", error);
@@ -107,19 +139,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       }
       return true;
     },
-    async jwt({ token, user, account }) {
-      console.log("[AUTH] jwt callback:", { hasUser: !!user, provider: account?.provider, tokenId: token.id });
-      if (user) {
-        // For OAuth providers, we need to get the user ID from our database
-        if (account?.provider === "google" && user.email) {
-          const dbUser = await getUserByEmail(user.email.toLowerCase().trim());
-          console.log("[AUTH] jwt - dbUser found:", !!dbUser);
-          if (dbUser) {
-            token.id = dbUser.id;
-          }
-        } else {
-          token.id = user.id;
-        }
+    async jwt({ token, user }) {
+      console.log("[AUTH] jwt callback:", { hasUser: !!user, userId: user?.id, tokenId: token.id });
+      if (user?.id) {
+        token.id = user.id;
       }
       console.log("[AUTH] jwt returning token with id:", token.id);
       return token;
