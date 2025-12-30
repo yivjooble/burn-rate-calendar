@@ -58,6 +58,13 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Allow requests that come from OAuth callback (cookie being set)
+  const referer = request.headers.get("referer") || "";
+  if (referer.includes("/api/auth/callback")) {
+    console.log("[MIDDLEWARE] Allowing OAuth callback redirect");
+    return NextResponse.next();
+  }
+
   // Rate limiting for API endpoints (standard)
   if (pathname.startsWith("/api/")) {
     const rateLimitKey = `api:${clientId}`;
