@@ -134,6 +134,9 @@ export interface DbUser {
   password_salt: string;
   created_at: number;
   updated_at: number;
+  totp_enabled: boolean;
+  totp_secret: string | null;
+  backup_codes: string | null;
 }
 
 export async function createUser(
@@ -158,6 +161,9 @@ export async function createUser(
     password_salt: user.passwordSalt,
     created_at: Math.floor(user.createdAt.getTime() / 1000),
     updated_at: Math.floor(user.updatedAt.getTime() / 1000),
+    totp_enabled: user.totpEnabled,
+    totp_secret: user.totpSecret,
+    backup_codes: user.backupCodes,
   };
 }
 
@@ -172,6 +178,9 @@ export async function getUserByEmail(email: string): Promise<DbUser | null> {
     password_salt: user.passwordSalt,
     created_at: Math.floor(user.createdAt.getTime() / 1000),
     updated_at: Math.floor(user.updatedAt.getTime() / 1000),
+    totp_enabled: user.totpEnabled,
+    totp_secret: user.totpSecret,
+    backup_codes: user.backupCodes,
   };
 }
 
@@ -186,7 +195,50 @@ export async function getUserById(id: string): Promise<DbUser | null> {
     password_salt: user.passwordSalt,
     created_at: Math.floor(user.createdAt.getTime() / 1000),
     updated_at: Math.floor(user.updatedAt.getTime() / 1000),
+    totp_enabled: user.totpEnabled,
+    totp_secret: user.totpSecret,
+    backup_codes: user.backupCodes,
   };
+}
+
+// =============================================================================
+// 2FA MANAGEMENT
+// =============================================================================
+
+export async function enableUserTotp(
+  userId: string,
+  encryptedSecret: string,
+  encryptedBackupCodes: string
+): Promise<void> {
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      totpSecret: encryptedSecret,
+      totpEnabled: true,
+      backupCodes: encryptedBackupCodes,
+    },
+  });
+}
+
+export async function disableUserTotp(userId: string): Promise<void> {
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      totpSecret: null,
+      totpEnabled: false,
+      backupCodes: null,
+    },
+  });
+}
+
+export async function updateUserBackupCodes(
+  userId: string,
+  encryptedBackupCodes: string
+): Promise<void> {
+  await prisma.user.update({
+    where: { id: userId },
+    data: { backupCodes: encryptedBackupCodes },
+  });
 }
 
 // =============================================================================

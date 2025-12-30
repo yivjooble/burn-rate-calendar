@@ -18,6 +18,11 @@ model User {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
+  // 2FA fields
+  totpSecret    String?  @map("totp_secret")   // Encrypted TOTP secret
+  totpEnabled   Boolean  @default(false) @map("totp_enabled")
+  backupCodes   String?  @map("backup_codes")  // Encrypted JSON array of backup codes
+
   settings             UserSetting[]
   transactions         UserTransaction[]
   excludedTransactions UserExcludedTransaction[]

@@ -1,8 +1,9 @@
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 import Credentials from "next-auth/providers/credentials";
-import { getUserByEmail, createUser } from "@/lib/db";
+import { getUserByEmail, createUser, updateUserBackupCodes } from "@/lib/db";
 import { scryptSync, randomBytes, timingSafeEqual } from "crypto";
+import { verifyTotpCode, verifyBackupCode, decrypt, encrypt } from "@/lib/totp";
 
 /**
  * Hash password using scrypt (OWASP recommended).
@@ -40,6 +41,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
+        totpCode: { label: "2FA Code", type: "text" },
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
@@ -49,6 +51,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         const email = (credentials.email as string).toLowerCase().trim();
         const password = credentials.password as string;
+        const totpCode = credentials.totpCode as string | undefined;
 
         console.log("[AUTH] Attempting login for:", email);
 
@@ -69,6 +72,39 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             // Verify password for existing user
             if (!verifyPassword(password, existingUser.password_hash, existingUser.password_salt)) {
               console.log("[AUTH] Invalid password for:", email);
+              return null;
+            }
+          }
+
+          // Check 2FA if enabled
+          if (existingUser.totp_enabled && existingUser.totp_secret) {
+            if (!totpCode) {
+              console.log("[AUTH] 2FA required but no code provided for:", email);
+              // Throw a special error that the client can detect
+              throw new Error("2FA_REQUIRED");
+            }
+
+            const decryptedSecret = decrypt(existingUser.totp_secret);
+
+            // Try TOTP code first
+            if (verifyTotpCode(decryptedSecret, totpCode)) {
+              console.log("[AUTH] 2FA TOTP verified for:", email);
+            } else if (existingUser.backup_codes) {
+              // Try backup code
+              const backupCodes = JSON.parse(decrypt(existingUser.backup_codes)) as string[];
+              const { valid, remainingCodes } = verifyBackupCode(backupCodes, totpCode);
+
+              if (valid) {
+                console.log("[AUTH] 2FA backup code used for:", email);
+                // Update remaining backup codes
+                const encryptedCodes = encrypt(JSON.stringify(remainingCodes));
+                await updateUserBackupCodes(existingUser.id, encryptedCodes);
+              } else {
+                console.log("[AUTH] Invalid 2FA code for:", email);
+                return null;
+              }
+            } else {
+              console.log("[AUTH] Invalid 2FA code for:", email);
               return null;
             }
           }

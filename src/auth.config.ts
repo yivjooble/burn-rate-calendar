@@ -33,8 +33,14 @@ export default {
     },
     session({ session, token }) {
       // Add user id to session from token
+      console.log("[AUTH.CONFIG] session callback:", {
+        hasSession: !!session,
+        hasUser: !!session?.user,
+        tokenId: token.id
+      });
       if (session.user && token.id) {
         session.user.id = token.id as string;
+        console.log("[AUTH.CONFIG] Set session.user.id:", session.user.id);
       }
       return session;
     },

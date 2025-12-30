@@ -2,13 +2,13 @@
 
 import { useState, Suspense } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { Flame, LogIn, AlertCircle } from "lucide-react";
+import { Flame, LogIn, AlertCircle, Shield, ArrowLeft } from "lucide-react";
 
 function GoogleIcon({ className }: { className?: string }) {
   return (
@@ -22,15 +22,16 @@ function GoogleIcon({ className }: { className?: string }) {
 }
 
 function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/";
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [totpCode, setTotpCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+  const [requires2FA, setRequires2FA] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,12 +42,18 @@ function LoginForm() {
       const result = await signIn("credentials", {
         email,
         password,
+        totpCode: requires2FA ? totpCode : undefined,
         redirect: false,
       });
 
       if (result?.error) {
         if (result.status === 429) {
           setError("Забагато спроб. Зачекайте хвилину і спробуйте знову.");
+        } else if (result.error === "2FA_REQUIRED" || result.error.includes("2FA_REQUIRED")) {
+          setRequires2FA(true);
+          setError(null);
+        } else if (requires2FA) {
+          setError("Невірний код двофакторної автентифікації");
         } else {
           setError("Невірний email або пароль");
         }
@@ -73,6 +80,82 @@ function LoginForm() {
       setIsGoogleLoading(false);
     }
   };
+
+  const handleBack = () => {
+    setRequires2FA(false);
+    setTotpCode("");
+    setError(null);
+  };
+
+  // 2FA verification screen
+  if (requires2FA) {
+    return (
+      <Card className="w-full max-w-md">
+        <CardHeader className="text-center">
+          <div className="flex justify-center mb-4">
+            <div className="flex items-center gap-2">
+              <Shield className="w-8 h-8 text-blue-500" />
+              <span className="text-2xl font-bold">Двофакторна автентифікація</span>
+            </div>
+          </div>
+          <CardTitle>Введіть код</CardTitle>
+          <CardDescription>
+            Введіть 6-значний код з Google Authenticator або backup code.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {error && (
+            <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="totpCode">Код підтвердження</Label>
+              <Input
+                id="totpCode"
+                type="text"
+                value={totpCode}
+                onChange={(e) => setTotpCode(e.target.value.replace(/\s/g, ""))}
+                placeholder="123456 або ABCD1234"
+                required
+                autoComplete="one-time-code"
+                autoFocus
+                maxLength={8}
+              />
+              <p className="text-xs text-muted-foreground">
+                6-значний код з додатку або 8-символьний backup code.
+              </p>
+            </div>
+
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? (
+                <>Перевірка...</>
+              ) : (
+                <>
+                  <Shield className="w-4 h-4 mr-2" />
+                  Підтвердити
+                </>
+              )}
+            </Button>
+
+            <Button
+              type="button"
+              variant="ghost"
+              className="w-full"
+              onClick={handleBack}
+              disabled={isLoading}
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Назад до входу
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="w-full max-w-md">
