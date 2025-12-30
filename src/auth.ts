@@ -1,5 +1,6 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
+import Google from "next-auth/providers/google";
 import { getUserByEmail, createUser } from "@/lib/db";
 import { scryptSync, randomBytes, timingSafeEqual } from "crypto";
 
@@ -20,16 +21,20 @@ function verifyPassword(password: string, storedHash: string, salt: string): boo
   const { hash } = hashPassword(password, salt);
   const storedBuffer = Buffer.from(storedHash, "hex");
   const hashBuffer = Buffer.from(hash, "hex");
-  
+
   if (storedBuffer.length !== hashBuffer.length) {
     return false;
   }
-  
+
   return timingSafeEqual(storedBuffer, hashBuffer);
 }
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
+    Google({
+      clientId: process.env.GOOGLE_CLIENT_ID,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    }),
     Credentials({
       name: "credentials",
       credentials: {
@@ -63,10 +68,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         // Create new user (first-time registration)
         const newUserId = randomBytes(16).toString("hex");
         const { hash, salt } = hashPassword(password);
-        
+
         try {
           await createUser(newUserId, email, hash, salt);
-          
+
           return {
             id: newUserId,
             email: email,
@@ -83,9 +88,33 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     signIn: "/login",
   },
   callbacks: {
-    async jwt({ token, user }) {
+    async signIn({ user, account }) {
+      // Handle Google OAuth sign-in
+      if (account?.provider === "google" && user.email) {
+        const email = user.email.toLowerCase().trim();
+        const existingUser = await getUserByEmail(email);
+
+        if (!existingUser) {
+          // Create new user for Google OAuth (no password needed)
+          const newUserId = randomBytes(16).toString("hex");
+          // Use a placeholder for OAuth users (they can't login with password)
+          const placeholder = randomBytes(32).toString("hex");
+          await createUser(newUserId, email, placeholder, placeholder);
+        }
+      }
+      return true;
+    },
+    async jwt({ token, user, account }) {
       if (user) {
-        token.id = user.id;
+        // For OAuth providers, we need to get the user ID from our database
+        if (account?.provider === "google" && user.email) {
+          const dbUser = await getUserByEmail(user.email.toLowerCase().trim());
+          if (dbUser) {
+            token.id = dbUser.id;
+          }
+        } else {
+          token.id = user.id;
+        }
       }
       return token;
     },
