@@ -1,0 +1,98 @@
+// Prisma schema for Burn Rate Calendar
+// PostgreSQL database for Railway deployment
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  passwordSalt String   @map("password_salt")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  settings             UserSetting[]
+  transactions         UserTransaction[]
+  excludedTransactions UserExcludedTransaction[]
+
+  @@map("users")
+}
+
+model UserSetting {
+  userId String @map("user_id")
+  key    String
+  value  String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, key])
+  @@map("user_settings")
+}
+
+model UserTransaction {
+  id            String  @id
+  odataId       String? @map("odata_id") // Original transaction ID from Monobank
+  userId        String  @map("user_id")
+  time          Int
+  description   String
+  mcc           Int
+  amount        Int
+  balance       Int
+  cashbackAmount Int     @default(0) @map("cashback_amount")
+  currencyCode  Int     @default(980) @map("currency_code")
+  comment       String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([odataId, userId])
+  @@index([userId, time])
+  @@map("user_transactions")
+}
+
+model UserExcludedTransaction {
+  id     String
+  odataId String? @map("odata_id") // Original transaction ID from Monobank
+  userId String  @map("user_id")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([id, userId])
+  @@map("user_excluded_transactions")
+}
+
+// Legacy tables for backward compatibility during migration
+// These can be removed after full migration
+
+model Setting {
+  key   String @id
+  value String
+
+  @@map("settings")
+}
+
+model Transaction {
+  id            String  @id
+  time          Int
+  description   String
+  mcc           Int
+  amount        Int
+  balance       Int
+  cashbackAmount Int     @default(0) @map("cashback_amount")
+  comment       String?
+
+  @@index([time])
+  @@map("transactions")
+}
+
+model ExcludedTransaction {
+  id String @id
+
+  @@map("excluded_transactions")
+}

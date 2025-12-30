@@ -1,0 +1,387 @@
+"use client";
+
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useBudgetStore } from "@/store/budget-store";
+import { BudgetCalendar } from "@/components/budget-calendar";
+import { BudgetSummary } from "@/components/budget-summary";
+import { SpendingChart } from "@/components/spending-chart";
+import { SettingsPanel } from "@/components/settings-panel";
+import { DayDetailModal } from "@/components/day-detail-modal";
+import { CategoriesPage } from "@/components/categories-page";
+import { distributeBudget } from "@/lib/budget-ai";
+import { getMonthBoundaries } from "@/lib/monobank";
+import {
+  refreshTodayTransactions,
+  getAllStoredTransactions,
+  isHistoricalDataAvailable,
+  getLastSync,
+  fetchCurrencyRates,
+} from "@/lib/mono-sync";
+import { DayBudget, Transaction, CurrencyRate, convertToUAH } from "@/types";
+import { Flame, Settings, ChartLine, Calendar, RefreshCw, AlertCircle, Tags, LogOut } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import { useSession, signOut } from "next-auth/react";
+
+type TabType = "calendar" | "prediction" | "categories" | "settings";
+
+export default function Home() {
+  const { data: session } = useSession();
+  const {
+    settings,
+    setMonthBudget,
+    monthBudget,
+    transactions,
+    setTransactions,
+    excludedTransactionIds,
+    isLoading,
+    isHistoricalLoading,
+    setLoading,
+    error,
+    setError,
+  } = useBudgetStore();
+  const [activeTab, setActiveTab] = useState<TabType>("calendar");
+  const [selectedDay, setSelectedDay] = useState<DayBudget | null>(null);
+  const [isHydrated, setIsHydrated] = useState(false);
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+  const [syncProgress, setSyncProgress] = useState<string | null>(null);
+  const [hasHistoricalData, setHasHistoricalData] = useState(false);
+  const [currencyRates, setCurrencyRates] = useState<CurrencyRate[]>([]);
+  const backgroundSyncRef = useRef<NodeJS.Timeout | null>(null);
+
+  const { initFromDb, dbInitialized } = useBudgetStore();
+
+  // Load active tab from localStorage and init from DB on mount
+  useEffect(() => {
+    const savedTab = localStorage.getItem("burn-rate-active-tab") as TabType | null;
+    if (savedTab && ["calendar", "prediction", "categories", "settings"].includes(savedTab)) {
+      setActiveTab(savedTab);
+    }
+    // Initialize from SQLite DB
+    initFromDb();
+    setIsHydrated(true);
+  }, [initFromDb]);
+
+  // Save active tab to localStorage when it changes
+  useEffect(() => {
+    if (isHydrated) {
+      localStorage.setItem("burn-rate-active-tab", activeTab);
+    }
+  }, [activeTab, isHydrated]);
+
+  // Load stored transactions and calculate budget
+  const loadFromStorage = useCallback(async () => {
+    try {
+      const rates = await fetchCurrencyRates();
+      setCurrencyRates(rates);
+      
+      const storedTransactions = await getAllStoredTransactions();
+      if (storedTransactions.length > 0) {
+        setTransactions(storedTransactions);
+        
+        // Filter to current month for budget calculation
+        const now = new Date();
+        const { from: currentFrom, to: currentTo } = getMonthBoundaries(now);
+        const currentMonthTx = storedTransactions.filter(
+          tx => tx.time >= currentFrom && tx.time <= currentTo
+        );
+        
+        // Convert to UAH for budget
+        const transactionsInUAH = currentMonthTx.map(tx => ({
+          ...tx,
+          amount: Math.round(convertToUAH(tx.amount, tx.currencyCode, rates)),
+        }));
+
+        const budget = distributeBudget(
+          settings.monthlyBudget,
+          new Date(),
+          [],
+          transactionsInUAH,
+          excludedTransactionIds
+        );
+        setMonthBudget(budget);
+        
+        const lastSync = await getLastSync();
+        if (lastSync) {
+          setLastRefresh(new Date(lastSync));
+        }
+      }
+    } catch (err) {
+      console.error("Error loading from storage:", err);
+    }
+  }, [settings.monthlyBudget, excludedTransactionIds, setTransactions, setMonthBudget]);
+
+  // Refresh only today's transactions (quick update)
+  const refreshToday = useCallback(async () => {
+    if (!settings.monoToken) {
+      setError("Введіть токен Monobank в налаштуваннях");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const accountIds = settings.selectedAccountIds?.length 
+        ? settings.selectedAccountIds 
+        : [settings.accountId];
+
+      await refreshTodayTransactions(settings.monoToken, accountIds);
+      await loadFromStorage();
+      setLastRefresh(new Date());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Помилка оновлення");
+    } finally {
+      setLoading(false);
+    }
+  }, [settings.monoToken, settings.accountId, settings.selectedAccountIds, loadFromStorage, setLoading, setError]);
+
+  // Refresh today's transactions only (no full historical sync)
+  const fetchMonoData = useCallback(async () => {
+    if (!settings.monoToken) {
+      setError("Введіть токен Monobank в налаштуваннях");
+      return;
+    }
+
+    // Always just refresh today's transactions
+    // Historical data should be loaded via Settings panel
+    await refreshToday();
+  }, [
+    settings.monoToken,
+    refreshToday,
+    setError,
+  ]);
+
+  // Check for historical data and load from storage on mount
+  useEffect(() => {
+    if (!isHydrated) return;
+
+    const initData = async () => {
+      const hasData = await isHistoricalDataAvailable();
+      setHasHistoricalData(hasData);
+      
+      if (hasData) {
+        // Load from SQLite DB
+        await loadFromStorage();
+      }
+      // Don't auto-sync on page refresh - user should manually trigger historical data load
+    };
+
+    initData();
+  }, [isHydrated, loadFromStorage]);
+
+  // Background sync every 5 minutes
+  useEffect(() => {
+    if (!isHydrated || !settings.monoToken || !hasHistoricalData) return;
+
+    const startBackgroundSync = () => {
+      if (backgroundSyncRef.current) {
+        clearInterval(backgroundSyncRef.current);
+      }
+
+      backgroundSyncRef.current = setInterval(async () => {
+        try {
+          const accountIds = settings.selectedAccountIds?.length 
+            ? settings.selectedAccountIds 
+            : [settings.accountId];
+          await refreshTodayTransactions(settings.monoToken!, accountIds);
+          await loadFromStorage();
+          setLastRefresh(new Date());
+        } catch {
+          // Ignore background sync errors
+        }
+      }, 5 * 60 * 1000); // 5 minutes
+    };
+
+    startBackgroundSync();
+
+    return () => {
+      if (backgroundSyncRef.current) {
+        clearInterval(backgroundSyncRef.current);
+      }
+    };
+  }, [isHydrated, settings.monoToken, settings.accountId, settings.selectedAccountIds, hasHistoricalData, loadFromStorage]);
+
+  useEffect(() => {
+    if (!isHydrated) return;
+
+    // Always create empty budget structure so calendar is visible
+    if (!monthBudget) {
+      const budget = distributeBudget(settings.monthlyBudget, new Date(), [], [], excludedTransactionIds);
+      setMonthBudget(budget);
+    }
+  }, [isHydrated, settings.monthlyBudget, monthBudget, excludedTransactionIds, setMonthBudget]);
+
+  // Recalculate budget when excluded transactions change
+  const recalculateBudget = useCallback(() => {
+    if (transactions.length > 0) {
+      // Filter to current month for budget calculation
+      const now = new Date();
+      const { from: currentFrom, to: currentTo } = getMonthBoundaries(now);
+      const currentMonthTx = transactions.filter(
+        tx => tx.time >= currentFrom && tx.time <= currentTo
+      );
+      
+      const budget = distributeBudget(
+        settings.monthlyBudget,
+        new Date(),
+        [],
+        currentMonthTx,
+        excludedTransactionIds
+      );
+      setMonthBudget(budget);
+    }
+  }, [transactions, settings.monthlyBudget, excludedTransactionIds, setMonthBudget]);
+
+  useEffect(() => {
+    if (isHydrated && transactions.length > 0) {
+      recalculateBudget();
+    }
+  }, [excludedTransactionIds, isHydrated, transactions.length, recalculateBudget]);
+
+  if (!isHydrated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-pulse text-muted-foreground">Завантаження...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 flex flex-col bg-background">
+      {/* Header */}
+      <header className="flex-shrink-0 border-b bg-background/95 backdrop-blur h-14">
+        <div className="h-full max-w-4xl mx-auto px-4 flex items-center justify-between">
+          <button
+            onClick={() => setActiveTab("calendar")}
+            className="flex items-center gap-2 hover:opacity-80 transition-opacity cursor-pointer"
+          >
+            <Flame className="w-6 h-6 text-orange-500" />
+            <span className="font-semibold">Burn Rate Calendar</span>
+          </button>
+          <div className="flex gap-2">
+            <Button
+              variant={activeTab === "calendar" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setActiveTab("calendar")}
+              disabled={isLoading || isHistoricalLoading}
+            >
+              <Calendar className="w-4 h-4 mr-1" />
+              <span className="hidden sm:inline">Календар</span>
+            </Button>
+            <Button
+              variant={activeTab === "categories" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setActiveTab("categories")}
+              disabled={isLoading || isHistoricalLoading}
+            >
+              <Tags className="w-4 h-4 mr-1" />
+              <span className="hidden sm:inline">Категорії</span>
+            </Button>
+            <Button
+              variant={activeTab === "prediction" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setActiveTab("prediction")}
+              disabled={isLoading || isHistoricalLoading}
+            >
+              <ChartLine className="w-4 h-4 mr-1" />
+              <span className="hidden sm:inline">Статистика</span>
+            </Button>
+            <Button
+              variant={activeTab === "settings" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setActiveTab("settings")}
+              disabled={isLoading || isHistoricalLoading}
+            >
+              <Settings className="w-4 h-4 mr-1" />
+              <span className="hidden sm:inline">Налаштування</span>
+            </Button>
+            <Separator orientation="vertical" className="h-6 mx-1" />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => signOut({ callbackUrl: "/login" })}
+              title={session?.user?.email || "Вийти"}
+            >
+              <LogOut className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="flex-1 overflow-auto">
+        <div className="max-w-4xl mx-auto px-4 py-4">
+          {error && (
+            <div className="flex items-center gap-2 p-3 mb-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+              <AlertCircle className="w-5 h-5 flex-shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {activeTab === "calendar" && (
+            <div className="space-y-4">
+              {/* Top bar */}
+              <div className="flex items-center justify-between">
+                <div className="text-sm text-muted-foreground">
+                  {lastRefresh && (
+                    <span>Оновлено: {lastRefresh.toLocaleTimeString("uk-UA")} • </span>
+                  )}
+                  {settings.monoToken ? (
+                    <span>
+                      Monobank грудень 2025
+                      {settings.selectedAccountCurrencies && settings.selectedAccountCurrencies.length > 0 && (
+                        <span className="ml-1 text-xs">
+                          ({[...new Set(settings.selectedAccountCurrencies)].map(code => 
+                            code === 980 ? "UAH" : code === 840 ? "USD" : code === 978 ? "EUR" : code
+                          ).join(", ")})
+                        </span>
+                      )}
+                    </span>
+                  ) : (
+                    <span className="text-orange-500">Токен не налаштовано</span>
+                  )}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fetchMonoData()}
+                  disabled={isLoading || !settings.monoToken}
+                >
+                  <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
+                  {isLoading ? (syncProgress || "Завантаження...") : "Оновити"}
+                </Button>
+              </div>
+
+              {monthBudget && (
+                <>
+                  <BudgetSummary budget={monthBudget} />
+                  <BudgetCalendar
+                    dailyLimits={monthBudget.dailyLimits}
+                    onDayClick={setSelectedDay}
+                  />
+                </>
+              )}
+            </div>
+          )}
+
+          {activeTab === "prediction" && (
+            <SpendingChart onRefresh={fetchMonoData} isLoading={isLoading} />
+          )}
+
+          {activeTab === "categories" && (
+            <CategoriesPage />
+          )}
+
+          {activeTab === "settings" && (
+            <SettingsPanel onSave={() => setActiveTab("calendar")} />
+          )}
+        </div>
+      </main>
+
+      {selectedDay && (
+        <DayDetailModal day={selectedDay} onClose={() => setSelectedDay(null)} />
+      )}
+    </div>
+  );
+}
