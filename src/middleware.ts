@@ -78,11 +78,13 @@ export async function middleware(request: NextRequest) {
   }
 
   // Check authentication using JWT token
-  const token = await getToken({ 
+  const token = await getToken({
     req: request,
     secret: process.env.NEXTAUTH_SECRET,
   });
   const isAuthenticated = !!token;
+
+  console.log("[MIDDLEWARE]", { pathname, isAuthenticated, hasToken: !!token, tokenId: token?.id });
 
   // Protected API routes - return 401 if not authenticated
   const protectedApiRoutes = ["/api/db", "/api/mono"];
