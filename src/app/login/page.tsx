@@ -45,10 +45,16 @@ function LoginForm() {
       });
 
       if (result?.error) {
-        setError("Невірний email або пароль");
-      } else {
+        if (result.status === 429) {
+          setError("Забагато спроб. Зачекайте хвилину і спробуйте знову.");
+        } else {
+          setError("Невірний email або пароль");
+        }
+      } else if (result?.ok) {
         router.push(callbackUrl);
         router.refresh();
+      } else {
+        setError("Помилка входу. Спробуйте ще раз.");
       }
     } catch {
       setError("Помилка входу. Спробуйте ще раз.");
@@ -147,7 +153,7 @@ function LoginForm() {
               disabled={isGoogleLoading}
             />
             <p className="text-xs text-muted-foreground">
-              Мінімум 8 символів. При першому вході буде створено новий акаунт.
+              Мінімум 8 символів. Новий email = новий акаунт.
             </p>
           </div>
 
