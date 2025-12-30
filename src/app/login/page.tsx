@@ -51,8 +51,8 @@ function LoginForm() {
           setError("Невірний email або пароль");
         }
       } else if (result?.ok) {
-        router.push(callbackUrl);
-        router.refresh();
+        // Use window.location for full page reload to ensure cookie is set
+        window.location.href = callbackUrl;
       } else {
         setError("Помилка входу. Спробуйте ще раз.");
       }
