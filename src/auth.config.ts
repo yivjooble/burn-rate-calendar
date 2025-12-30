@@ -26,6 +26,8 @@ export default {
   callbacks: {
     jwt({ token, user }) {
       // When user signs in, add their id to the token
+      // Note: For Google OAuth, the actual DB userId is set in auth.ts jwt callback
+      // This callback runs for Edge runtime (middleware), so just preserve existing token.id
       if (user?.id) {
         token.id = user.id;
       }
@@ -33,14 +35,8 @@ export default {
     },
     session({ session, token }) {
       // Add user id to session from token
-      console.log("[AUTH.CONFIG] session callback:", {
-        hasSession: !!session,
-        hasUser: !!session?.user,
-        tokenId: token.id
-      });
       if (session.user && token.id) {
         session.user.id = token.id as string;
-        console.log("[AUTH.CONFIG] Set session.user.id:", session.user.id);
       }
       return session;
     },

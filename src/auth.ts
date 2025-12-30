@@ -161,12 +161,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             // Use a placeholder for OAuth users (they can't login with password)
             const placeholder = randomBytes(32).toString("hex");
             await createUser(newUserId, email, placeholder, placeholder);
-            console.log("[AUTH] Created new user for Google OAuth");
+            console.log("[AUTH] Created new user for Google OAuth with id:", newUserId);
             // Set the user id for the JWT callback
             user.id = newUserId;
           } else {
             // Set the user id from database for the JWT callback
             user.id = existingUser.id;
+            console.log("[AUTH] Set existing user id:", existingUser.id);
           }
         } catch (error) {
           console.error("[AUTH] Error in signIn callback:", error);
@@ -175,11 +176,39 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       }
       return true;
     },
-    async jwt({ token, user }) {
-      console.log("[AUTH] jwt callback:", { hasUser: !!user, userId: user?.id, tokenId: token.id });
+    async jwt({ token, user, account }) {
+      console.log("[AUTH] jwt callback:", {
+        hasUser: !!user,
+        provider: account?.provider,
+        userId: user?.id,
+        userEmail: user?.email,
+        tokenId: token.id,
+        tokenEmail: token.email
+      });
+
+      // On initial sign-in, user object is present
       if (user?.id) {
         token.id = user.id;
+        console.log("[AUTH] jwt - set token.id from user:", user.id);
       }
+
+      // For Google OAuth, if token.id is not set but we have email, fetch from DB
+      // This handles cases where user.id wasn't properly passed from signIn callback
+      if (!token.id && token.email) {
+        console.log("[AUTH] jwt - token.id missing, looking up by email:", token.email);
+        try {
+          const dbUser = await getUserByEmail(token.email as string);
+          if (dbUser) {
+            token.id = dbUser.id;
+            console.log("[AUTH] jwt - set token.id from database:", dbUser.id);
+          } else {
+            console.log("[AUTH] jwt - no user found in database for email");
+          }
+        } catch (error) {
+          console.error("[AUTH] jwt - error fetching user by email:", error);
+        }
+      }
+
       console.log("[AUTH] jwt returning token with id:", token.id);
       return token;
     },
