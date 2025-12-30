@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { 
-  getUserSetting, 
-  setUserSetting, 
-  getAllUserTransactions, 
+import {
+  getUserSetting,
+  setUserSetting,
+  getAllUserTransactions,
   saveUserTransactions,
   deleteUserTransactionsAfter,
   clearUserExcludedTransactions,
   DbUserTransaction
 } from "@/lib/db";
 import { requireAuth } from "@/lib/auth-utils";
+import { historicalTransactionsSchema, historicalMetaSchema, validateInput, ValidationError } from "@/lib/validation";
 
 // GET - retrieve transactions and meta
 export async function GET(request: NextRequest) {
@@ -63,32 +64,31 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
 
     if (type === "meta") {
-      if (body.lastSyncTime !== undefined) {
-        await setUserSetting(userId, "lastSyncTime", String(body.lastSyncTime));
+      // Validate meta input
+      const validatedMeta = validateInput(historicalMetaSchema, body);
+      if (validatedMeta.lastSyncTime !== undefined) {
+        await setUserSetting(userId, "lastSyncTime", String(validatedMeta.lastSyncTime ?? ""));
       }
-      if (body.historicalDataLoaded !== undefined) {
-        await setUserSetting(userId, "historicalDataLoaded", String(body.historicalDataLoaded));
+      if (validatedMeta.historicalDataLoaded !== undefined) {
+        await setUserSetting(userId, "historicalDataLoaded", String(validatedMeta.historicalDataLoaded));
       }
       return NextResponse.json({ success: true });
     }
 
-    // Validate body is an array
-    if (!Array.isArray(body)) {
-      console.error("Body is not an array:", typeof body, body);
-      return NextResponse.json({ error: "Invalid data format - expected array" }, { status: 400 });
-    }
+    // Validate transactions array with Zod
+    const validatedTransactions = validateInput(historicalTransactionsSchema, body);
 
     // Convert from frontend format to DB format
-    const dbTransactions: Omit<DbUserTransaction, "user_id">[] = body.map((tx: Record<string, unknown>) => ({
-      id: tx.id as string,
-      time: tx.time as number,
-      description: tx.description as string,
-      mcc: tx.mcc as number,
-      amount: tx.amount as number,
-      balance: tx.balance as number,
-      cashback_amount: (tx.cashbackAmount as number) || 0,
-      currency_code: (tx.currencyCode as number) || 980,
-      comment: (tx.comment as string) || null,
+    const dbTransactions: Omit<DbUserTransaction, "user_id">[] = validatedTransactions.map((tx) => ({
+      id: tx.id,
+      time: tx.time,
+      description: tx.description,
+      mcc: tx.mcc,
+      amount: tx.amount,
+      balance: tx.balance,
+      cashback_amount: tx.cashbackAmount ?? 0,
+      currency_code: tx.currencyCode ?? 980,
+      comment: tx.comment ?? null,
     }));
 
     console.log("Saving transactions:", dbTransactions.length, "first:", dbTransactions[0]);
@@ -98,9 +98,12 @@ export async function POST(request: NextRequest) {
     if (error instanceof Error && error.message === "Unauthorized") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    if (error instanceof ValidationError) {
+      return NextResponse.json({ error: "Validation failed", details: error.message }, { status: 400 });
+    }
     console.error("Error saving historical data:", error);
     return NextResponse.json(
-      { error: "Failed to save data", details: error instanceof Error ? error.message : String(error) },
+      { error: "Failed to save data" },
       { status: 500 }
     );
   }

@@ -1,34 +1,33 @@
-import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "crypto";
+import { createCipheriv, createDecipheriv, randomBytes } from "crypto";
 
 const ALGORITHM = "aes-256-gcm";
 const IV_LENGTH = 16;
 const AUTH_TAG_LENGTH = 16;
-const SALT_LENGTH = 32;
 
 /**
  * Get encryption key from environment variable.
- * In production, this should be fetched from HashiCorp Vault.
- * 
- * Key derivation uses scrypt to derive a 256-bit key from the master secret.
+ * Requires a 64-character hex string (32 bytes / 256 bits).
+ * Generate with: openssl rand -hex 32
  */
 function getEncryptionKey(): Buffer {
   const masterKey = process.env.ENCRYPTION_KEY;
-  
+
   if (!masterKey) {
     throw new Error(
       "ENCRYPTION_KEY environment variable is not set. " +
       "Generate one with: openssl rand -hex 32"
     );
   }
-  
-  // If key is already 64 hex chars (32 bytes), use directly
-  if (/^[a-fA-F0-9]{64}$/.test(masterKey)) {
-    return Buffer.from(masterKey, "hex");
+
+  // Require exactly 64 hex chars (32 bytes / 256 bits)
+  if (!/^[a-fA-F0-9]{64}$/.test(masterKey)) {
+    throw new Error(
+      "ENCRYPTION_KEY must be exactly 64 hex characters (32 bytes). " +
+      "Generate one with: openssl rand -hex 32"
+    );
   }
-  
-  // Otherwise derive key using scrypt (for passphrase-style keys)
-  const salt = Buffer.from("burn-rate-calendar-v1", "utf-8");
-  return scryptSync(masterKey, salt, 32);
+
+  return Buffer.from(masterKey, "hex");
 }
 
 /**
