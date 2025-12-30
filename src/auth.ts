@@ -1,8 +1,7 @@
 import NextAuth from "next-auth";
-import Credentials from "next-auth/providers/credentials";
-import Google from "next-auth/providers/google";
 import { getUserByEmail, createUser } from "@/lib/db";
 import { scryptSync, randomBytes, timingSafeEqual } from "crypto";
+import authConfig from "./auth.config";
 
 /**
  * Hash password using scrypt (OWASP recommended).
@@ -30,63 +29,59 @@ function verifyPassword(password: string, storedHash: string, salt: string): boo
 }
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  ...authConfig,
   providers: [
-    Google({
-      clientId: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    }),
-    Credentials({
-      name: "credentials",
-      credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" },
-      },
-      async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          return null;
-        }
+    // Override providers to add actual authorize logic
+    ...authConfig.providers.map((provider) => {
+      if (provider.id === "credentials") {
+        return {
+          ...provider,
+          authorize: async (credentials: Record<string, unknown> | undefined) => {
+            if (!credentials?.email || !credentials?.password) {
+              return null;
+            }
 
-        const email = (credentials.email as string).toLowerCase().trim();
-        const password = credentials.password as string;
+            const email = (credentials.email as string).toLowerCase().trim();
+            const password = credentials.password as string;
 
-        // Check if user exists
-        const existingUser = await getUserByEmail(email);
+            // Check if user exists
+            const existingUser = await getUserByEmail(email);
 
-        if (existingUser) {
-          // Verify password for existing user
-          if (!verifyPassword(password, existingUser.password_hash, existingUser.password_salt)) {
-            return null;
-          }
+            if (existingUser) {
+              // Verify password for existing user
+              if (!verifyPassword(password, existingUser.password_hash, existingUser.password_salt)) {
+                return null;
+              }
 
-          return {
-            id: existingUser.id,
-            email: existingUser.email,
-            name: existingUser.email.split("@")[0],
-          };
-        }
+              return {
+                id: existingUser.id,
+                email: existingUser.email,
+                name: existingUser.email.split("@")[0],
+              };
+            }
 
-        // Create new user (first-time registration)
-        const newUserId = randomBytes(16).toString("hex");
-        const { hash, salt } = hashPassword(password);
+            // Create new user (first-time registration)
+            const newUserId = randomBytes(16).toString("hex");
+            const { hash, salt } = hashPassword(password);
 
-        try {
-          await createUser(newUserId, email, hash, salt);
+            try {
+              await createUser(newUserId, email, hash, salt);
 
-          return {
-            id: newUserId,
-            email: email,
-            name: email.split("@")[0],
-          };
-        } catch (error) {
-          console.error("Failed to create user:", error);
-          return null;
-        }
-      },
+              return {
+                id: newUserId,
+                email: email,
+                name: email.split("@")[0],
+              };
+            } catch (error) {
+              console.error("Failed to create user:", error);
+              return null;
+            }
+          },
+        };
+      }
+      return provider;
     }),
   ],
-  pages: {
-    signIn: "/login",
-  },
   callbacks: {
     async signIn({ user, account }) {
       console.log("[AUTH] signIn callback:", { provider: account?.provider, email: user.email });
@@ -136,9 +131,5 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       }
       return session;
     },
-  },
-  session: {
-    strategy: "jwt",
-    maxAge: 7 * 24 * 60 * 60, // 7 days (financial app - shorter sessions)
   },
 });

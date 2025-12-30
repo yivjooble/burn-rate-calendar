@@ -1,29 +1,33 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { getToken } from "next-auth/jwt";
-import { 
-  checkRateLimit, 
-  getClientIdentifier, 
-  AUTH_RATE_LIMIT, 
-  API_RATE_LIMIT 
+import NextAuth from "next-auth";
+import authConfig from "./auth.config";
+import {
+  checkRateLimit,
+  getClientIdentifier,
+  AUTH_RATE_LIMIT,
+  API_RATE_LIMIT
 } from "@/lib/rate-limit";
+
+// Create Edge-compatible auth instance (no database/Node.js modules)
+const { auth } = NextAuth(authConfig);
 
 /**
  * Middleware to protect routes and API endpoints.
- * 
+ *
  * Features:
  * - Authentication check
  * - Rate limiting (brute-force protection)
- * 
+ *
  * Protected routes:
  * - /api/db/* - Database operations (settings, transactions, etc.)
  * - /api/mono/* - Monobank API proxy
- * 
+ *
  * Public routes:
  * - /login - Login page
  * - /api/auth/* - NextAuth endpoints
  */
-export async function middleware(request: NextRequest) {
+export default auth(async function middleware(request) {
   const { pathname } = request.nextUrl;
   const clientId = getClientIdentifier(request);
 
@@ -31,11 +35,11 @@ export async function middleware(request: NextRequest) {
   if (pathname.startsWith("/api/auth")) {
     const rateLimitKey = `auth:${clientId}`;
     const { allowed, remaining, resetTime } = checkRateLimit(rateLimitKey, AUTH_RATE_LIMIT);
-    
+
     if (!allowed) {
       return NextResponse.json(
         { error: "Too many requests. Please try again later." },
-        { 
+        {
           status: 429,
           headers: {
             "Retry-After": String(Math.ceil((resetTime - Date.now()) / 1000)),
@@ -44,7 +48,7 @@ export async function middleware(request: NextRequest) {
         }
       );
     }
-    
+
     const response = NextResponse.next();
     response.headers.set("X-RateLimit-Remaining", String(remaining));
     return response;
@@ -58,22 +62,15 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Allow requests that come from OAuth callback (cookie being set)
-  const referer = request.headers.get("referer") || "";
-  if (referer.includes("/api/auth/callback")) {
-    console.log("[MIDDLEWARE] Allowing OAuth callback redirect");
-    return NextResponse.next();
-  }
-
   // Rate limiting for API endpoints (standard)
   if (pathname.startsWith("/api/")) {
     const rateLimitKey = `api:${clientId}`;
     const { allowed, remaining, resetTime } = checkRateLimit(rateLimitKey, API_RATE_LIMIT);
-    
+
     if (!allowed) {
       return NextResponse.json(
         { error: "Too many requests. Please try again later." },
-        { 
+        {
           status: 429,
           headers: {
             "Retry-After": String(Math.ceil((resetTime - Date.now()) / 1000)),
@@ -84,14 +81,10 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // Check authentication using JWT token
-  const token = await getToken({
-    req: request,
-    secret: process.env.NEXTAUTH_SECRET,
-  });
-  const isAuthenticated = !!token;
+  // Check authentication using NextAuth v5 - session is now on request.auth
+  const isAuthenticated = !!request.auth?.user;
 
-  console.log("[MIDDLEWARE]", { pathname, isAuthenticated, hasToken: !!token, tokenId: token?.id });
+  console.log("[MIDDLEWARE]", { pathname, isAuthenticated, userId: request.auth?.user?.id });
 
   // Protected API routes - return 401 if not authenticated
   const protectedApiRoutes = ["/api/db", "/api/mono"];
@@ -117,7 +110,7 @@ export async function middleware(request: NextRequest) {
   }
 
   return NextResponse.next();
-}
+});
 
 export const config = {
   matcher: [
