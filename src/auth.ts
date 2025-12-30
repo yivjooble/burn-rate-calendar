@@ -113,10 +113,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       return true;
     },
     async jwt({ token, user, account }) {
+      console.log("[AUTH] jwt callback:", { hasUser: !!user, provider: account?.provider, tokenId: token.id });
       if (user) {
         // For OAuth providers, we need to get the user ID from our database
         if (account?.provider === "google" && user.email) {
           const dbUser = await getUserByEmail(user.email.toLowerCase().trim());
+          console.log("[AUTH] jwt - dbUser found:", !!dbUser);
           if (dbUser) {
             token.id = dbUser.id;
           }
@@ -124,9 +126,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           token.id = user.id;
         }
       }
+      console.log("[AUTH] jwt returning token with id:", token.id);
       return token;
     },
     async session({ session, token }) {
+      console.log("[AUTH] session callback:", { hasSession: !!session, tokenId: token.id });
       if (session.user && token.id) {
         session.user.id = token.id as string;
       }
