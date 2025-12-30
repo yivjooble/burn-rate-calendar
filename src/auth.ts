@@ -89,17 +89,25 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   },
   callbacks: {
     async signIn({ user, account }) {
+      console.log("[AUTH] signIn callback:", { provider: account?.provider, email: user.email });
       // Handle Google OAuth sign-in
       if (account?.provider === "google" && user.email) {
         const email = user.email.toLowerCase().trim();
-        const existingUser = await getUserByEmail(email);
+        try {
+          const existingUser = await getUserByEmail(email);
+          console.log("[AUTH] Existing user:", !!existingUser);
 
-        if (!existingUser) {
-          // Create new user for Google OAuth (no password needed)
-          const newUserId = randomBytes(16).toString("hex");
-          // Use a placeholder for OAuth users (they can't login with password)
-          const placeholder = randomBytes(32).toString("hex");
-          await createUser(newUserId, email, placeholder, placeholder);
+          if (!existingUser) {
+            // Create new user for Google OAuth (no password needed)
+            const newUserId = randomBytes(16).toString("hex");
+            // Use a placeholder for OAuth users (they can't login with password)
+            const placeholder = randomBytes(32).toString("hex");
+            await createUser(newUserId, email, placeholder, placeholder);
+            console.log("[AUTH] Created new user for Google OAuth");
+          }
+        } catch (error) {
+          console.error("[AUTH] Error in signIn callback:", error);
+          return false;
         }
       }
       return true;
