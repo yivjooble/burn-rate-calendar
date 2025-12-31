@@ -39,6 +39,9 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
 } from "recharts";
 
 interface CategoryData {
@@ -390,6 +393,77 @@ export function CategoriesPage() {
         </Card>
       )}
 
+      {/* Pie Chart for category distribution */}
+      {categoryData.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">Розподіл витрат</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-col md:flex-row items-center gap-4">
+              <div className="w-64 h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={categoryData.map(c => ({ ...c, value: c.total }))}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={50}
+                      outerRadius={100}
+                      paddingAngle={2}
+                      dataKey="value"
+                      nameKey="name"
+                      onClick={(data) => setSelectedCategory(data.key)}
+                      style={{ cursor: "pointer" }}
+                    >
+                      {categoryData.map((entry) => (
+                        <Cell 
+                          key={entry.key} 
+                          fill={entry.color}
+                          stroke={selectedCategory === entry.key ? "#000" : "transparent"}
+                          strokeWidth={selectedCategory === entry.key ? 2 : 0}
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value) => [
+                        `${(Number(value) / 100).toLocaleString("uk-UA")} ₴`,
+                        "Сума"
+                      ]}
+                      contentStyle={{
+                        backgroundColor: "white",
+                        border: "1px solid #e5e7eb",
+                        borderRadius: "8px",
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="flex flex-wrap gap-2 justify-center md:justify-start">
+                {categoryData.slice(0, 8).map((cat) => (
+                  <button
+                    key={cat.key}
+                    onClick={() => setSelectedCategory(cat.key)}
+                    className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs transition-all ${
+                      selectedCategory === cat.key 
+                        ? "ring-2 ring-offset-1 ring-gray-400" 
+                        : "hover:bg-muted"
+                    }`}
+                    style={{ backgroundColor: `${cat.color}20` }}
+                  >
+                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: cat.color }} />
+                    <span className="font-medium">{cat.name}</span>
+                    <span className="text-muted-foreground">
+                      {totalExpenses > 0 ? ((cat.total / totalExpenses) * 100).toFixed(0) : 0}%
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Categories list */}
       <Card>
         <CardHeader className="pb-2">
@@ -645,7 +719,7 @@ export function CategoriesPage() {
               <span>{selectedCategoryInfo.icon}</span>
               <span>{selectedCategoryInfo.name}</span>
               <Badge variant="outline" className="ml-auto font-normal">
-                за 12 тижнів
+                {format(dateRange.from, "d MMM", { locale: uk })} — {format(dateRange.to, "d MMM", { locale: uk })}
               </Badge>
             </CardTitle>
           </CardHeader>

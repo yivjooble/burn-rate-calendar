@@ -12,6 +12,7 @@ export const MCC_CATEGORIES: Record<string, Category> = {
   "groceries": { name: "Продукти", icon: "🛒", color: "#22c55e" },
   "restaurants": { name: "Ресторани та кафе", icon: "🍽️", color: "#f97316" },
   "transport": { name: "Транспорт", icon: "🚗", color: "#3b82f6" },
+  "delivery": { name: "Пошта та доставка", icon: "📦", color: "#78716c" },
   "utilities": { name: "Комунальні послуги", icon: "💡", color: "#eab308" },
   "entertainment": { name: "Розваги", icon: "🎬", color: "#a855f7" },
   "shopping": { name: "Покупки", icon: "🛍️", color: "#ec4899" },
@@ -19,16 +20,44 @@ export const MCC_CATEGORIES: Record<string, Category> = {
   "education": { name: "Освіта", icon: "📚", color: "#6366f1" },
   "travel": { name: "Подорожі", icon: "✈️", color: "#0ea5e9" },
   "services": { name: "Послуги", icon: "🔧", color: "#64748b" },
+  "subscriptions": { name: "Підписки", icon: "📋", color: "#7c3aed" },
   "transfers": { name: "Перекази", icon: "💸", color: "#8b5cf6" },
   "mobile": { name: "Мобільний зв'язок", icon: "📱", color: "#06b6d4" },
   "cash": { name: "Готівка", icon: "💵", color: "#84cc16" },
   "charity": { name: "Благодійність", icon: "❤️", color: "#ef4444" },
-  "other": { name: "Інше", icon: "📦", color: "#94a3b8" },
+  "other": { name: "Інше", icon: "❓", color: "#94a3b8" },
 };
 
 // Detect category based on transaction description
 export function getCategoryFromDescription(description: string): string | null {
   const desc = description.toLowerCase();
+  
+  // Postal / Delivery services
+  if (desc.includes("нова пошта") || desc.includes("nova poshta") || desc.includes("novaposhta") ||
+      desc.includes("укрпошта") || desc.includes("ukrposhta") || desc.includes("meest") ||
+      desc.includes("міст") || desc.includes("justin") || desc.includes("джастін") ||
+      desc.includes("rozetka delivery") || desc.includes("доставка")) {
+    return "delivery";
+  }
+  
+  // Utilities - actual utility payments
+  if (desc.includes("комунальн") || desc.includes("квартплата") ||
+      desc.includes("жкг") || desc.includes("жкх") || desc.includes("осбб") ||
+      desc.includes("водоканал") || desc.includes("теплоенерг") ||
+      desc.includes("газопостач") || desc.includes("облгаз") ||
+      desc.includes("обленерго") || desc.includes("енергопостач") ||
+      desc.includes("київенерго") || desc.includes("його")) {
+    return "utilities";
+  }
+  
+  // Subscriptions / Digital services
+  if (desc.includes("netflix") || desc.includes("spotify") || desc.includes("youtube") ||
+      desc.includes("apple") || desc.includes("google play") || desc.includes("steam") ||
+      desc.includes("microsoft") || desc.includes("adobe") || desc.includes("chatgpt") ||
+      desc.includes("openai") || desc.includes("notion") || desc.includes("figma") ||
+      desc.includes("megogo") || desc.includes("мегого") || desc.includes("підписка")) {
+    return "subscriptions";
+  }
   
   // Transfers
   if (desc.includes("переказ") || desc.includes("на картку") || desc.includes("поповнення «")) {
@@ -45,6 +74,31 @@ export function getCategoryFromDescription(description: string): string | null {
   if (desc.includes("збір") || desc.includes("омбр") || desc.includes("зсу") || 
       desc.includes("донат") || desc.includes("благодійн")) {
     return "charity";
+  }
+  
+  // Transport - taxis, ride-sharing, fuel
+  if (desc.includes("bolt") || desc.includes("uber") || desc.includes("uklon") ||
+      desc.includes("уклон") || desc.includes("таксі") || desc.includes("taxi") ||
+      desc.includes("wog") || desc.includes("okko") || desc.includes("upg") ||
+      desc.includes("азс") || desc.includes("бензин") || desc.includes("пальне") ||
+      desc.includes("pkp") || desc.includes("укрзалізниця") || desc.includes("залізничн")) {
+    return "transport";
+  }
+  
+  // Groceries - supermarkets
+  if (desc.includes("атб") || desc.includes("atb") || desc.includes("сільпо") ||
+      desc.includes("фора") || desc.includes("fora") || desc.includes("новус") ||
+      desc.includes("novus") || desc.includes("ашан") || desc.includes("auchan") ||
+      desc.includes("метро") || desc.includes("metro") || desc.includes("варус") ||
+      desc.includes("костор") || desc.includes("екомаркет") || desc.includes("гастроном")) {
+    return "groceries";
+  }
+  
+  // Restaurants / Food delivery
+  if (desc.includes("glovo") || desc.includes("глово") || desc.includes("raketa") ||
+      desc.includes("mcdonald") || desc.includes("макдональд") ||
+      desc.includes("kfc") || desc.includes("pizza") || desc.includes("піца")) {
+    return "restaurants";
   }
   
   return null;

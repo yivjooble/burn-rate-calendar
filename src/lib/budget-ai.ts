@@ -124,12 +124,14 @@ export function distributeBudget(
       // For past days, use the base daily limit for comparison
       limit = baseDailyLimit;
     } else {
-      // For today and future days, use dynamic limit based on remaining budget
+      // For today and future days, use current balance (what's actually available)
+      // This matches the "На день" calculation in budget-summary.tsx
+      const availableBudget = currentBalance !== undefined ? Math.max(0, currentBalance) : Math.max(0, remainingBudget);
       const weightInfo = weights.find((w) => isSameDay(w.day, day));
       if (weightInfo && totalWeight > 0) {
-        limit = (remainingBudget * weightInfo.weight) / totalWeight;
+        limit = (availableBudget * weightInfo.weight) / totalWeight;
       } else {
-        limit = remainingBudget / Math.max(futureDays.length, 1);
+        limit = availableBudget / Math.max(futureDays.length, 1);
       }
     }
 
