@@ -7,7 +7,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Settings, Eye, EyeOff, Save, RefreshCw, CreditCard, Download, CalendarIcon } from "lucide-react";
-import { MonoAccount } from "@/types";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -38,13 +37,12 @@ const CARD_TYPE_NAMES: Record<string, string> = {
 };
 
 export function SettingsPanel({ onSave }: SettingsPanelProps) {
-  const { settings, setSettings, setTransactions, isHistoricalLoading, setHistoricalLoading } = useBudgetStore();
+  const { settings, setSettings, setTransactions, isHistoricalLoading, setHistoricalLoading, cachedAccounts, setCachedAccounts } = useBudgetStore();
   const [showToken, setShowToken] = useState(false);
   const [localToken, setLocalToken] = useState(settings.monoToken || "");
   const [localBudget, setLocalBudget] = useState(
     (settings.monthlyBudget / 100).toString()
   );
-  const [accounts, setAccounts] = useState<MonoAccount[]>([]);
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>(
     settings.selectedAccountIds || []
   );
@@ -157,10 +155,11 @@ export function SettingsPanel({ onSave }: SettingsPanelProps) {
         throw new Error("Помилка завантаження");
       }
       const data = await response.json();
-      setAccounts(data.accounts || []);
+      const accounts = data.accounts || [];
+      setCachedAccounts(accounts);
       // Auto-select first UAH account if none selected
-      if (selectedAccounts.length === 0 && data.accounts?.length > 0) {
-        const uahAccount = data.accounts.find((a: MonoAccount) => a.currencyCode === 980);
+      if (selectedAccounts.length === 0 && accounts.length > 0) {
+        const uahAccount = accounts.find((a: { currencyCode: number }) => a.currencyCode === 980);
         if (uahAccount) {
           setSelectedAccounts([uahAccount.id]);
         }
@@ -172,11 +171,7 @@ export function SettingsPanel({ onSave }: SettingsPanelProps) {
     }
   };
 
-  useEffect(() => {
-    if (localToken && accounts.length === 0) {
-      fetchAccounts();
-    }
-  }, [localToken]);
+  // No auto-fetch - accounts are only loaded manually via refresh button
 
   const toggleAccount = (accountId: string) => {
     setSelectedAccounts(prev =>
@@ -186,7 +181,7 @@ export function SettingsPanel({ onSave }: SettingsPanelProps) {
     );
   };
 
-  const getAccountLabel = (account: MonoAccount) => {
+  const getAccountLabel = (account: { currencyCode: number; type: string; maskedPan?: string[] }) => {
     const currency = CURRENCY_NAMES[account.currencyCode] || account.currencyCode;
     const type = CARD_TYPE_NAMES[account.type] || account.type;
     const maskedPan = account.maskedPan?.[0] || "";
@@ -197,7 +192,7 @@ export function SettingsPanel({ onSave }: SettingsPanelProps) {
   const handleSave = () => {
     // Get currency codes for selected accounts
     const selectedCurrencies = selectedAccounts.map(id => {
-      const acc = accounts.find(a => a.id === id);
+      const acc = cachedAccounts.find(a => a.id === id);
       return acc?.currencyCode || 980;
     });
     
@@ -286,9 +281,9 @@ export function SettingsPanel({ onSave }: SettingsPanelProps) {
           {accountsError && (
             <p className="text-xs text-red-500">{accountsError}</p>
           )}
-          {accounts.filter(a => !['eAid', 'madeInUkraine'].includes(a.type)).length > 0 ? (
+          {cachedAccounts.filter(a => !['eAid', 'madeInUkraine'].includes(a.type)).length > 0 ? (
             <div className="space-y-2 max-h-48 overflow-y-auto">
-              {accounts
+              {cachedAccounts
                 .filter(account => !['eAid', 'madeInUkraine'].includes(account.type))
                 .map((account) => (
                 <label

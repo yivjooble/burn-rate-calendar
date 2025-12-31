@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { UserSettings, MonthBudget, InflationPrediction, Transaction } from "@/types";
+import { UserSettings, MonthBudget, InflationPrediction, Transaction, MonoAccount } from "@/types";
 
 export interface CustomCategory {
   id: string;
@@ -17,6 +17,7 @@ interface BudgetState {
   excludedTransactionIds: string[];
   customCategories: CustomCategory[];
   transactionCategories: Record<string, string>; // transactionId -> categoryId
+  cachedAccounts: MonoAccount[]; // Cached Monobank accounts to avoid rate limiting
   isLoading: boolean;
   isHistoricalLoading: boolean; // Historical data sync in progress
   error: string | null;
@@ -31,6 +32,7 @@ interface BudgetState {
   addCustomCategory: (category: CustomCategory) => void;
   removeCustomCategory: (categoryId: string) => void;
   setTransactionCategory: (transactionId: string, categoryId: string | null) => void;
+  setCachedAccounts: (accounts: MonoAccount[]) => void;
   setLoading: (loading: boolean) => void;
   setHistoricalLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
@@ -54,6 +56,7 @@ export const useBudgetStore = create<BudgetState>()(
       excludedTransactionIds: [],
       customCategories: [],
       transactionCategories: {},
+      cachedAccounts: [],
       isLoading: false,
       isHistoricalLoading: false,
       error: null,
@@ -63,15 +66,15 @@ export const useBudgetStore = create<BudgetState>()(
         set((state) => ({
           settings: { ...state.settings, ...newSettings },
         }));
-        // Sync to DB
-        const state = get();
-        const settings = { ...state.settings, ...newSettings };
-        Object.entries(settings).forEach(([key, value]) => {
+        // Sync to DB - only sync the changed settings
+        Object.entries(newSettings).forEach(([key, value]) => {
           if (value !== undefined) {
+            // Convert arrays to JSON strings for storage
+            const stringValue = Array.isArray(value) ? JSON.stringify(value) : String(value);
             fetch("/api/db/settings", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ key, value: String(value) }),
+              body: JSON.stringify({ key, value: stringValue }),
               credentials: "include",
             }).catch(console.error);
           }
@@ -149,6 +152,8 @@ export const useBudgetStore = create<BudgetState>()(
         });
       },
 
+      setCachedAccounts: (accounts) => set({ cachedAccounts: accounts }),
+
       setLoading: (loading) => set({ isLoading: loading }),
 
       setHistoricalLoading: (loading) => set({ isHistoricalLoading: loading }),
@@ -164,6 +169,7 @@ export const useBudgetStore = create<BudgetState>()(
           excludedTransactionIds: [],
           customCategories: [],
           transactionCategories: {},
+          cachedAccounts: [],
           isLoading: false,
           isHistoricalLoading: false,
           error: null,
@@ -184,6 +190,21 @@ export const useBudgetStore = create<BudgetState>()(
             if (dbSettings.monoToken) settings.monoToken = dbSettings.monoToken;
             if (dbSettings.monthlyBudget) settings.monthlyBudget = Number(dbSettings.monthlyBudget);
             if (dbSettings.accountId) settings.accountId = dbSettings.accountId;
+            // Parse JSON arrays from DB
+            if (dbSettings.selectedAccountIds) {
+              try {
+                settings.selectedAccountIds = JSON.parse(dbSettings.selectedAccountIds);
+              } catch {
+                settings.selectedAccountIds = [];
+              }
+            }
+            if (dbSettings.selectedAccountCurrencies) {
+              try {
+                settings.selectedAccountCurrencies = JSON.parse(dbSettings.selectedAccountCurrencies);
+              } catch {
+                settings.selectedAccountCurrencies = [];
+              }
+            }
             if (Object.keys(settings).length > 0) {
               set((state) => ({ settings: { ...state.settings, ...settings } }));
             }
@@ -243,13 +264,14 @@ export const useBudgetStore = create<BudgetState>()(
     }),
     {
       name: "burn-rate-storage",
-      partialize: (state) => ({ 
+      partialize: (state) => ({
         settings: state.settings,
         // excludedTransactionIds - loaded from SQLite DB only, not localStorage
         // transactions - loaded from SQLite DB only, not localStorage
         monthBudget: state.monthBudget,
         customCategories: state.customCategories,
         transactionCategories: state.transactionCategories,
+        cachedAccounts: state.cachedAccounts, // Cache accounts to avoid rate limiting
       }),
     }
   )
