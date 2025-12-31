@@ -316,18 +316,18 @@ export function CategoriesPage() {
       {/* Header with date range picker and refresh button */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base flex flex-col gap-2">
-            <div className="flex items-center justify-between">
+          <CardTitle className="text-base">
+            <div className="flex items-center justify-between mb-2">
               <span>Категорії витрат</span>
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8"
+                className="h-7"
                 onClick={loadFromStorage}
                 disabled={loadingHistory}
               >
-                <RefreshCw className={`w-4 h-4 ${loadingHistory ? "animate-spin" : ""}`} />
-                <span className="hidden sm:inline ml-2">{loadingHistory ? "Завантаження..." : "Оновити"}</span>
+                <RefreshCw className={`w-3.5 h-3.5 ${loadingHistory ? "animate-spin" : ""}`} />
+                <span className="ml-1.5 text-xs">{loadingHistory ? "..." : "Оновити"}</span>
               </Button>
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
