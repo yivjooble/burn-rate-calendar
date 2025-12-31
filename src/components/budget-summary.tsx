@@ -11,8 +11,11 @@ interface BudgetSummaryProps {
 
 export function BudgetSummary({ budget }: BudgetSummaryProps) {
   const percentSpent = (budget.totalSpent / budget.totalBudget) * 100;
+  // Use current card balance for daily limit (what you can actually spend per day)
+  // Falls back to totalRemaining if currentBalance is not available
+  const availableForDaily = budget.currentBalance ?? budget.totalRemaining;
   const dailyAverage = budget.daysRemaining > 0
-    ? budget.totalRemaining / budget.daysRemaining
+    ? Math.max(0, availableForDaily) / budget.daysRemaining
     : 0;
 
   return (

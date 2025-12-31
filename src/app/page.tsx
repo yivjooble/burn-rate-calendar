@@ -144,7 +144,8 @@ export default function Home() {
           new Date(),
           [],
           transactionsInUAH,
-          excludedTransactionIds
+          excludedTransactionIds,
+          budgetAmount // currentBalance = card balance in UAH
         );
         setMonthBudget(budget);
 
@@ -257,7 +258,7 @@ export default function Home() {
     // Always create empty budget structure so calendar is visible
     if (!monthBudget) {
       const budgetAmount = settings.accountBalance || 0;
-      const budget = distributeBudget(budgetAmount, new Date(), [], [], excludedTransactionIds);
+      const budget = distributeBudget(budgetAmount, new Date(), [], [], excludedTransactionIds, budgetAmount);
       setMonthBudget(budget);
     }
   }, [isHydrated, settings.accountBalance, monthBudget, excludedTransactionIds, setMonthBudget]);
@@ -283,7 +284,8 @@ export default function Home() {
         new Date(),
         [],
         currentMonthTx,
-        excludedTransactionIds
+        excludedTransactionIds,
+        budgetAmount // currentBalance = card balance in UAH
       );
       setMonthBudget(budget);
     }

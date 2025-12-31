@@ -70,7 +70,8 @@ export function distributeBudget(
   currentDate: Date,
   pastTransactions: Transaction[],
   currentMonthTransactions: Transaction[],
-  excludedTransactionIds: string[] = []
+  excludedTransactionIds: string[] = [],
+  currentBalance?: number
 ): MonthBudget {
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
@@ -169,6 +170,7 @@ export function distributeBudget(
     daysRemaining: futureDays.length,
     dailyLimits,
     aiRecommendation,
+    currentBalance,
   };
 }
 

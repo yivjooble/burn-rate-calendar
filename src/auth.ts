@@ -117,14 +117,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             }
           }
 
-          // Check if email is verified (skip for legacy users without emailVerified field)
+          // Check if email is verified (skip for legacy users created before email verification feature)
           const emailVerified = await isEmailVerified(email);
-          // Legacy users (created before email verification) are considered verified
-          // New users must verify their email
-          if (!emailVerified && existingUser.created_at > Math.floor(Date.now() / 1000) - 86400) {
-            // Only enforce for users created in the last 24 hours
-            // This gives grace period for users created just before this feature
-            console.log("[AUTH] Email not verified for:", email);
+          // Email verification feature was added on 2025-12-31 12:28:28 UTC
+          // Users created before this timestamp are considered "legacy" and don't need verification
+          const EMAIL_VERIFICATION_CUTOFF = 1735648108; // 2025-12-31 12:28:28 UTC
+          if (!emailVerified && existingUser.created_at > EMAIL_VERIFICATION_CUTOFF) {
+            // Only enforce email verification for users created after the feature was added
+            console.log("[AUTH] Email not verified for:", email, "created_at:", existingUser.created_at, "cutoff:", EMAIL_VERIFICATION_CUTOFF);
             throw new Error("EMAIL_NOT_VERIFIED");
           }
 

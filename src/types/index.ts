@@ -68,6 +68,7 @@ export interface MonthBudget {
   daysRemaining: number;
   dailyLimits: DayBudget[];
   aiRecommendation?: string;
+  currentBalance?: number; // Current card balance for daily limit calculation
 }
 
 export interface UserSettings {
