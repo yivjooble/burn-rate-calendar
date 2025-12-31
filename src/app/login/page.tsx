@@ -40,7 +40,38 @@ function LoginForm() {
     setIsLoading(true);
 
     try {
-      // Build credentials object - only include totpCode if 2FA is required
+      // If we're not in 2FA mode yet, first check if 2FA is required
+      if (!requires2FA) {
+        console.log("[LOGIN] Checking pre-login for:", email);
+
+        const preLoginRes = await fetch("/api/auth/pre-login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password }),
+        });
+
+        if (preLoginRes.status === 429) {
+          setError("Забагато спроб. Зачекайте хвилину і спробуйте знову.");
+          return;
+        }
+
+        const preLoginData = await preLoginRes.json();
+        console.log("[LOGIN] Pre-login result:", preLoginData);
+
+        if (!preLoginData.valid) {
+          setError("Невірний email або пароль");
+          return;
+        }
+
+        if (preLoginData.requires2FA) {
+          console.log("[LOGIN] 2FA required, showing 2FA form");
+          setRequires2FA(true);
+          setError(null);
+          return;
+        }
+      }
+
+      // Proceed with actual signIn (with or without 2FA code)
       const credentials: Record<string, string | boolean> = {
         email,
         password,
@@ -62,16 +93,8 @@ function LoginForm() {
       console.log("[LOGIN] signIn result:", result);
 
       if (result?.error) {
-        const errorStr = String(result.error || "");
-
         if (result.status === 429) {
           setError("Забагато спроб. Зачекайте хвилину і спробуйте знову.");
-        } else if (errorStr.includes("2FA_REQUIRED")) {
-          console.log("[LOGIN] 2FA required detected, showing 2FA form");
-          setRequires2FA(true);
-          setError(null);
-        } else if (errorStr.includes("EMAIL_NOT_VERIFIED")) {
-          setError("Email не підтверджено. Перевірте вашу пошту для активації акаунту.");
         } else if (requires2FA) {
           setError("Невірний код двофакторної автентифікації");
         } else {
