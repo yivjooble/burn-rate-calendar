@@ -88,11 +88,11 @@ export function checkRateLimit(
 
 /**
  * Rate limit for authentication endpoints.
- * 20 requests per minute - allows OAuth flows while preventing brute-force.
+ * 50 requests per minute - allows OAuth flows while preventing brute-force.
  */
 export const AUTH_RATE_LIMIT: RateLimitConfig = {
   windowMs: 60 * 1000, // 1 minute
-  maxRequests: 20,
+  maxRequests: 50,
 };
 
 /**
