@@ -10,7 +10,14 @@ export async function getUserIdFromRequest(request: NextRequest): Promise<string
     req: request,
     secret: process.env.NEXTAUTH_SECRET,
   });
-  
+
+  console.log("[AUTH-UTILS] getToken result:", {
+    hasToken: !!token,
+    tokenId: token?.id,
+    tokenEmail: token?.email,
+    cookieHeader: request.headers.get("cookie")?.substring(0, 100),
+  });
+
   return (token?.id as string) ?? null;
 }
 
