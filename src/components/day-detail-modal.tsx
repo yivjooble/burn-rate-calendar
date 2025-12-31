@@ -225,7 +225,7 @@ export function DayDetailModal({ day, onClose, onExcludeTransaction }: DayDetail
 
           <Separator />
 
-          <div className="space-y-3 max-h-72 overflow-y-auto">
+          <div className="space-y-3">
             {/* Expenses */}
             {expenses.length > 0 && (
               <div>
