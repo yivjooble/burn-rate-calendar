@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { format, subMonths, startOfMonth, endOfMonth, isSameMonth, eachWeekOfInterval, endOfWeek } from "date-fns";
+import { format, subMonths, startOfMonth, endOfMonth, isSameMonth, eachDayOfInterval } from "date-fns";
 import { uk } from "date-fns/locale";
 import { isExpense } from "@/lib/monobank";
 import { useBudgetStore } from "@/store/budget-store";
@@ -55,9 +55,9 @@ interface CategoryData {
   currencyCode?: number;
 }
 
-interface WeekCategoryData {
-  weekStart: Date;
-  weekLabel: string;
+interface DayCategoryData {
+  date: Date;
+  dateLabel: string;
   amount: number;
 }
 
@@ -226,27 +226,27 @@ export function CategoriesPage() {
     }
   }, [categoryData, selectedCategory]);
 
-  // Calculate weekly data for selected category (based on selected date range)
-  const weeklyData = useMemo(() => {
+  // Calculate daily data for selected category (based on selected date range)
+  const dailyData = useMemo(() => {
     if (!selectedCategory) return [];
 
-    const data: WeekCategoryData[] = [];
+    const data: DayCategoryData[] = [];
 
-    // Get weeks within selected date range
-    const weeks = eachWeekOfInterval(
-      { start: dateRange.from, end: dateRange.to },
-      { weekStartsOn: 1 }
-    );
+    // Get all days within selected date range
+    const days = eachDayOfInterval({ start: dateRange.from, end: dateRange.to });
 
-    weeks.forEach(weekStart => {
-      const weekEnd = endOfWeek(weekStart, { weekStartsOn: 1 });
+    days.forEach(day => {
+      const dayStart = new Date(day);
+      dayStart.setHours(0, 0, 0, 0);
+      const dayEnd = new Date(day);
+      dayEnd.setHours(23, 59, 59, 999);
 
-      const weekTransactions = historicalTransactions.filter(tx => {
+      const dayTransactions = historicalTransactions.filter(tx => {
         const txDate = new Date(tx.time * 1000);
-        return txDate >= weekStart && txDate <= weekEnd;
+        return txDate >= dayStart && txDate <= dayEnd;
       });
 
-      const amount = weekTransactions
+      const amount = dayTransactions
         .filter(tx => 
           isExpense(tx, historicalTransactions) && 
           !excludedTransactionIds.includes(tx.id) &&
@@ -255,8 +255,8 @@ export function CategoriesPage() {
         .reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
 
       data.push({
-        weekStart,
-        weekLabel: format(weekStart, "d MMM", { locale: uk }),
+        date: day,
+        dateLabel: format(day, "d.MM", { locale: uk }),
         amount: Math.round(amount / 100),
       });
     });
@@ -685,8 +685,8 @@ export function CategoriesPage() {
         </Card>
       )}
 
-      {/* Chart for selected category - weekly granulation */}
-      {selectedCategory && selectedCategoryInfo && weeklyData.length > 0 && (
+      {/* Chart for selected category - daily granulation */}
+      {selectedCategory && selectedCategoryInfo && dailyData.length > 0 && (
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
@@ -701,15 +701,15 @@ export function CategoriesPage() {
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart
-                  data={weeklyData}
+                  data={dailyData}
                   margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                   <XAxis 
-                    dataKey="weekLabel" 
+                    dataKey="dateLabel" 
                     tick={{ fontSize: 10 }}
                     stroke="#9ca3af"
-                    interval={1}
+                    interval={Math.max(0, Math.floor(dailyData.length / 10))}
                   />
                   <YAxis 
                     tick={{ fontSize: 12 }}
