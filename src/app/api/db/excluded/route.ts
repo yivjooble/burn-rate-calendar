@@ -1,11 +1,11 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { getUserExcludedTransactionIds, addUserExcludedTransaction, removeUserExcludedTransaction } from "@/lib/db";
 import { requireAuth } from "@/lib/auth-utils";
 import { excludedTransactionSchema, validateInput, ValidationError } from "@/lib/validation";
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
-    const userId = await requireAuth(request);
+    const userId = await requireAuth();
     const ids = await getUserExcludedTransactionIds(userId);
     return NextResponse.json(ids);
   } catch (error) {
@@ -17,9 +17,9 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   try {
-    const userId = await requireAuth(request);
+    const userId = await requireAuth();
     const body = await request.json();
     
     // Validate input

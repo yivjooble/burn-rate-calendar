@@ -1,36 +1,33 @@
-import { getToken } from "next-auth/jwt";
-import { NextRequest } from "next/server";
+import { auth } from "@/auth";
 
 /**
- * Get the authenticated user's ID from the request.
+ * Get the authenticated user's ID from the session.
+ * Uses NextAuth v5 auth() function which works in API routes.
  * Returns null if not authenticated.
  */
-export async function getUserIdFromRequest(request: NextRequest): Promise<string | null> {
-  const token = await getToken({
-    req: request,
-    secret: process.env.NEXTAUTH_SECRET,
+export async function getUserIdFromRequest(): Promise<string | null> {
+  const session = await auth();
+
+  console.log("[AUTH-UTILS] auth() result:", {
+    hasSession: !!session,
+    hasUser: !!session?.user,
+    userId: session?.user?.id,
+    userEmail: session?.user?.email,
   });
 
-  console.log("[AUTH-UTILS] getToken result:", {
-    hasToken: !!token,
-    tokenId: token?.id,
-    tokenEmail: token?.email,
-    cookieHeader: request.headers.get("cookie")?.substring(0, 100),
-  });
-
-  return (token?.id as string) ?? null;
+  return session?.user?.id ?? null;
 }
 
 /**
  * Require authentication and return user ID.
  * Throws an error if not authenticated.
  */
-export async function requireAuth(request: NextRequest): Promise<string> {
-  const userId = await getUserIdFromRequest(request);
-  
+export async function requireAuth(): Promise<string> {
+  const userId = await getUserIdFromRequest();
+
   if (!userId) {
     throw new Error("Unauthorized");
   }
-  
+
   return userId;
 }

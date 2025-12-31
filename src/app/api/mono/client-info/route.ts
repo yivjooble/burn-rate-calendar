@@ -3,7 +3,7 @@ import { requireAuth } from "@/lib/auth-utils";
 
 export async function GET(request: NextRequest) {
   try {
-    await requireAuth(request);
+    await requireAuth();
   } catch {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

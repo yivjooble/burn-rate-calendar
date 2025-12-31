@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import {
   getUserSetting,
   setUserSetting,
@@ -12,12 +12,12 @@ import { requireAuth } from "@/lib/auth-utils";
 import { historicalTransactionsSchema, historicalMetaSchema, validateInput, ValidationError } from "@/lib/validation";
 
 // GET - retrieve transactions and meta
-export async function GET(request: NextRequest) {
+export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const type = searchParams.get("type") || "transactions";
 
   try {
-    const userId = await requireAuth(request);
+    const userId = await requireAuth();
 
     if (type === "meta") {
       const lastSyncTime = await getUserSetting(userId, "lastSyncTime");
@@ -55,12 +55,12 @@ export async function GET(request: NextRequest) {
 }
 
 // POST - save transactions or meta
-export async function POST(request: NextRequest) {
+export async function POST(request: Request) {
   const { searchParams } = new URL(request.url);
   const type = searchParams.get("type") || "transactions";
 
   try {
-    const userId = await requireAuth(request);
+    const userId = await requireAuth();
     const body = await request.json();
 
     if (type === "meta") {
@@ -110,12 +110,12 @@ export async function POST(request: NextRequest) {
 }
 
 // DELETE - clear transactions after a timestamp or all
-export async function DELETE(request: NextRequest) {
+export async function DELETE(request: Request) {
   const { searchParams } = new URL(request.url);
   const afterTimestamp = searchParams.get("after");
 
   try {
-    const userId = await requireAuth(request);
+    const userId = await requireAuth();
 
     if (afterTimestamp) {
       const timestamp = parseInt(afterTimestamp, 10);

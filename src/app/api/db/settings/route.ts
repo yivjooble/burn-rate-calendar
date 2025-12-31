@@ -8,7 +8,7 @@ const SENSITIVE_KEYS = ["monoToken"];
 
 export async function GET(request: NextRequest) {
   try {
-    const userId = await requireAuth(request);
+    const userId = await requireAuth();
     const settings = await getAllUserSettings(userId);
     
     // Decrypt sensitive fields before sending to client
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const userId = await requireAuth(request);
+    const userId = await requireAuth();
     const body = await request.json();
     
     // Validate input
