@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Shield, ShieldCheck, ShieldOff, Copy, Check, RefreshCw, AlertTriangle } from "lucide-react";
+import { Shield, ShieldCheck, ShieldOff, Copy, Check, RefreshCw } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -242,16 +242,16 @@ export function TwoFactorSettings() {
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Status indicator */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
             {status?.enabled ? (
               <>
-                <ShieldCheck className="w-5 h-5 text-emerald-500" />
-                <span className="text-sm text-emerald-600 font-medium">2FA увімкнено</span>
+                <div className="w-2 h-2 rounded-full bg-green-500" />
+                <span>2FA увімкнено</span>
               </>
             ) : (
               <>
-                <ShieldOff className="w-5 h-5 text-muted-foreground" />
-                <span className="text-sm text-muted-foreground">2FA вимкнено</span>
+                <div className="w-2 h-2 rounded-full bg-gray-300" />
+                <span>2FA вимкнено</span>
               </>
             )}
           </div>
@@ -343,7 +343,7 @@ export function TwoFactorSettings() {
 
           {/* Enabled state - manage options */}
           {status?.enabled && !setupData && (
-            <div className="space-y-3">
+            <div className="flex flex-wrap gap-2">
               <Button
                 variant="outline"
                 size="sm"
@@ -353,8 +353,9 @@ export function TwoFactorSettings() {
                 Оновити резервні коди
               </Button>
               <Button
-                variant="destructive"
+                variant="outline"
                 size="sm"
+                className="text-muted-foreground hover:text-destructive hover:border-destructive"
                 onClick={() => setShowDisableDialog(true)}
               >
                 <ShieldOff className="w-4 h-4 mr-2" />
@@ -369,10 +370,7 @@ export function TwoFactorSettings() {
       <Dialog open={showBackupCodes} onOpenChange={setShowBackupCodes}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-amber-500" />
-              Резервні коди
-            </DialogTitle>
+            <DialogTitle>Резервні коди</DialogTitle>
             <DialogDescription>
               Збережіть ці коди в безпечному місці. Кожен код можна використати лише один раз
               для входу, якщо ви втратите доступ до автентифікатора.

@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Settings, Eye, EyeOff, Save, RefreshCw, CreditCard, Download, CalendarIcon, AlertTriangle, Trash2 } from "lucide-react";
+import { Settings, Eye, EyeOff, Save, RefreshCw, CreditCard, Download, CalendarIcon, Trash2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -265,62 +265,14 @@ export function SettingsPanel({ onSave }: SettingsPanelProps) {
           <Label htmlFor="token">Monobank Token</Label>
 
           {hasStoredToken ? (
-            <div className="space-y-2">
-              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
-                <p className="text-sm text-emerald-700 font-medium flex items-center gap-2">
-                  <span className="text-emerald-600">✓</span>
-                  Токен збережено на сервері
-                </p>
-                <p className="text-xs text-emerald-600 mt-1">
-                  Токен зашифровано і зберігається безпечно
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <Input
-                  id="token"
-                  type={showToken ? "text" : "password"}
-                  value={localToken}
-                  onChange={(e) => setLocalToken(e.target.value)}
-                  placeholder="Введіть новий токен для заміни"
-                  className="flex-1"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowToken(!showToken)}
-                  className="px-3 text-muted-foreground hover:text-foreground"
-                >
-                  {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                </button>
-              </div>
-              <div className="flex gap-2">
-                {localToken && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={async () => {
-                      setTokenSaving(true);
-                      try {
-                        const response = await fetch("/api/db/mono-token", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({ token: localToken }),
-                        });
-                        if (response.ok) {
-                          setLocalToken("");
-                          setHasStoredToken(true);
-                        }
-                      } finally {
-                        setTokenSaving(false);
-                      }
-                    }}
-                    disabled={tokenSaving}
-                  >
-                    {tokenSaving ? "Збереження..." : "Оновити токен"}
-                  </Button>
-                )}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <div className="w-2 h-2 rounded-full bg-green-500" />
+                <span>Токен збережено</span>
                 <Button
-                  variant="destructive"
+                  variant="ghost"
                   size="sm"
+                  className="ml-auto h-7 text-xs text-muted-foreground hover:text-destructive"
                   onClick={async () => {
                     if (!confirm("Ви впевнені, що хочете видалити токен?")) return;
                     setTokenDeleting(true);
@@ -337,9 +289,52 @@ export function SettingsPanel({ onSave }: SettingsPanelProps) {
                   disabled={tokenDeleting}
                 >
                   <Trash2 className="w-3 h-3 mr-1" />
-                  {tokenDeleting ? "Видалення..." : "Видалити"}
+                  {tokenDeleting ? "..." : "Видалити"}
                 </Button>
               </div>
+              <div className="flex gap-2">
+                <Input
+                  id="token"
+                  type={showToken ? "text" : "password"}
+                  value={localToken}
+                  onChange={(e) => setLocalToken(e.target.value)}
+                  placeholder="Новий токен (якщо потрібно замінити)"
+                  className="flex-1 text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowToken(!showToken)}
+                  className="px-3 text-muted-foreground hover:text-foreground"
+                >
+                  {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              {localToken && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={async () => {
+                    setTokenSaving(true);
+                    try {
+                      const response = await fetch("/api/db/mono-token", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ token: localToken }),
+                      });
+                      if (response.ok) {
+                        setLocalToken("");
+                        setHasStoredToken(true);
+                      }
+                    } finally {
+                      setTokenSaving(false);
+                    }
+                  }}
+                  disabled={tokenSaving}
+                >
+                  {tokenSaving ? "Збереження..." : "Оновити токен"}
+                </Button>
+              )}
             </div>
           ) : (
             <div className="space-y-2">
@@ -389,12 +384,9 @@ export function SettingsPanel({ onSave }: SettingsPanelProps) {
             </div>
           )}
 
-          <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg">
-            <p className="text-xs text-amber-700 flex items-start gap-2">
-              <AlertTriangle className="w-3 h-3 mt-0.5 flex-shrink-0" />
-              <span>Токен зберігається зашифрованим на сервері. Для максимальної безпеки рекомендуємо мобільний додаток (скоро).</span>
-            </p>
-          </div>
+          <p className="text-xs text-muted-foreground">
+            Токен зберігається зашифрованим на сервері.
+          </p>
 
           <p className="text-xs text-muted-foreground">
             Отримайте токен на{" "}
@@ -465,15 +457,13 @@ export function SettingsPanel({ onSave }: SettingsPanelProps) {
           <Label className="text-base font-semibold">Історичні дані</Label>
           
           {hasHistoricalData && (
-            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
-              <p className="text-sm text-emerald-700 font-medium flex items-center gap-2">
-                <span className="text-emerald-600">✓</span>
-                Історичні дані завантажено
-              </p>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="w-2 h-2 rounded-full bg-green-500" />
+              <span>Дані завантажено</span>
               {loadedPeriod.from && loadedPeriod.to && (
-                <p className="text-sm text-emerald-600 mt-1">
-                  Період: {format(new Date(loadedPeriod.from * 1000), "dd MMMM yyyy", { locale: uk })} — {format(new Date(loadedPeriod.to * 1000), "dd MMMM yyyy", { locale: uk })}
-                </p>
+                <span className="text-xs">
+                  ({format(new Date(loadedPeriod.from * 1000), "dd.MM.yy", { locale: uk })} — {format(new Date(loadedPeriod.to * 1000), "dd.MM.yy", { locale: uk })})
+                </span>
               )}
             </div>
           )}
