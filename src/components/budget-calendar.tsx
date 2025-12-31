@@ -73,12 +73,12 @@ export function BudgetCalendar({ dailyLimits, onDayClick }: BudgetCalendarProps)
     return (settings.accountBalance || 0) / 30;
   }, [isCurrentMonth, dailyLimits, settings.accountBalance]);
 
-  // Get status color for the indicator dot
+  // Get status color for the bar fill
   const getStatusColor = (percentage: number): string => {
-    if (percentage >= 100) return "bg-red-500";
-    if (percentage >= 80) return "bg-amber-500";
+    if (percentage >= 100) return "bg-red-400";
+    if (percentage >= 80) return "bg-orange-400";
     if (percentage >= 50) return "bg-yellow-400";
-    return "bg-emerald-500";
+    return "bg-emerald-400";
   };
 
   // Get day info - either from current month dailyLimits or historical data
@@ -155,30 +155,7 @@ export function BudgetCalendar({ dailyLimits, onDayClick }: BudgetCalendarProps)
         </button>
       </div>
 
-      {/* Month Summary - Glassmorphism style */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 p-4 text-white">
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-purple-500/10" />
-        <div className="relative flex items-center justify-between">
-          <div>
-            <p className="text-xs text-white/60 uppercase tracking-wider">Витрачено</p>
-            <p className="text-2xl font-light tracking-tight">
-              {(monthTotals.spent / 100).toLocaleString("uk-UA", { maximumFractionDigits: 0 })}
-              <span className="text-base text-white/60 ml-1">₴</span>
-            </p>
-          </div>
-          {isCurrentMonth && (
-            <div className="text-right">
-              <p className="text-xs text-white/60 uppercase tracking-wider">На день</p>
-              <p className="text-2xl font-light tracking-tight">
-                {(avgDailyLimit / 100).toLocaleString("uk-UA", { maximumFractionDigits: 0 })}
-                <span className="text-base text-white/60 ml-1">₴</span>
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Weekday headers - Minimal */}
+      {/* Weekday headers */}
       <div className="grid grid-cols-7 gap-0.5">
         {weekDays.map((day, i) => (
           <div
@@ -193,10 +170,10 @@ export function BudgetCalendar({ dailyLimits, onDayClick }: BudgetCalendarProps)
         ))}
       </div>
 
-      {/* Calendar grid - Minimalist design */}
-      <div className="grid grid-cols-7 gap-0.5">
+      {/* Calendar grid with color fill from bottom */}
+      <div className="grid grid-cols-7 gap-1 md:gap-1.5">
         {Array.from({ length: paddingDays }).map((_, i) => (
-          <div key={`padding-${i}`} className="aspect-square" />
+          <div key={`padding-${i}`} className="h-14 md:h-20" />
         ))}
 
         {days.map((day) => {
@@ -204,72 +181,99 @@ export function BudgetCalendar({ dailyLimits, onDayClick }: BudgetCalendarProps)
           const isTodayDay = isToday(day);
           const isPast = day < new Date() && !isTodayDay;
           const hasSpending = dayInfo && dayInfo.spent > 0;
+          const barHeight = dayInfo ? Math.min((dayInfo.spent / dayInfo.limit) * 100, 100) : 0;
 
           return (
             <button
               key={day.toISOString()}
               onClick={() => {
-                if (isCurrentMonth) {
-                  const dayData = dailyLimits.find((d) => isSameDay(d.date, day));
-                  if (dayData) onDayClick?.(dayData);
+                if (dayInfo) {
+                  // Create DayBudget object for historical months too
+                  const dayData: DayBudget = {
+                    date: day,
+                    limit: dayInfo.limit,
+                    spent: dayInfo.spent,
+                    remaining: dayInfo.limit - dayInfo.spent,
+                    transactions: dayInfo.transactions,
+                    status: dayInfo.percentage >= 100 ? "over" : dayInfo.percentage >= 80 ? "warning" : "under"
+                  };
+                  onDayClick?.(dayData);
                 }
               }}
               className={cn(
-                "relative aspect-square flex flex-col items-center justify-center rounded-xl transition-all",
-                "active:scale-95",
-                isTodayDay && "bg-slate-900 text-white shadow-lg",
-                !isTodayDay && isPast && !hasSpending && "opacity-40",
-                !isTodayDay && "hover:bg-muted/50"
+                "relative h-14 md:h-20 rounded-md md:rounded-lg border overflow-hidden transition-all active:scale-95 md:hover:shadow-md md:hover:border-primary/50",
+                isTodayDay && "ring-2 ring-primary ring-offset-1",
+                dayInfo?.percentage && dayInfo.percentage >= 100 && "border-red-300",
+                isPast && !hasSpending ? "bg-gray-100" : "bg-card"
               )}
             >
-              {/* Day number */}
-              <span
-                className={cn(
-                  "text-base font-light",
-                  isTodayDay ? "font-medium" : "text-foreground/80"
-                )}
-              >
-                {format(day, "d")}
-              </span>
-
-              {/* Spending amount - small, below number */}
-              {hasSpending && (
-                <span className={cn(
-                  "text-[10px] tabular-nums",
-                  isTodayDay ? "text-white/70" : "text-muted-foreground"
-                )}>
-                  {(dayInfo.spent / 100).toLocaleString("uk-UA", { maximumFractionDigits: 0 })}
-                </span>
-              )}
-
-              {/* Status indicator - thin line at bottom */}
-              {hasSpending && (
-                <div 
+              {/* Color fill from bottom */}
+              <div className="absolute inset-0">
+                <div
                   className={cn(
-                    "absolute bottom-1 left-1/2 -translate-x-1/2 h-0.5 rounded-full transition-all",
-                    getStatusColor(dayInfo.percentage)
+                    "absolute bottom-0 left-0 right-0 transition-all duration-300",
+                    isPast && !hasSpending ? "bg-gray-100" : getStatusColor(dayInfo?.percentage || 0)
                   )}
-                  style={{ width: `${Math.min(dayInfo.percentage, 100) * 0.6}%`, minWidth: hasSpending ? 8 : 0 }}
+                  style={{ height: isPast && !hasSpending ? "0%" : `${barHeight}%` }}
                 />
-              )}
+
+                <div className="relative z-10 p-1 md:p-1.5 flex flex-col h-full">
+                  <div className="flex items-center gap-0.5 md:gap-1">
+                    <span
+                      className={cn(
+                        "text-xs md:text-sm font-medium",
+                        isTodayDay ? "text-primary font-bold" : "text-foreground/80"
+                      )}
+                    >
+                      {format(day, "d")}
+                    </span>
+                    {isTodayDay && (
+                      <span className="w-1 h-1 md:w-1.5 md:h-1.5 rounded-full bg-primary animate-pulse" />
+                    )}
+                  </div>
+
+                  {dayInfo && (
+                    <div className="mt-auto">
+                      {dayInfo.spent > 0 ? (
+                        <>
+                          <div className="text-[10px] md:text-xs font-semibold text-foreground/70 leading-tight">
+                            {(dayInfo.spent / 100).toLocaleString("uk-UA", { maximumFractionDigits: 0 })}
+                          </div>
+                          <div className="text-[9px] md:text-[10px] text-muted-foreground leading-tight">
+                            /{(dayInfo.limit / 100).toLocaleString("uk-UA", { maximumFractionDigits: 0 })}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-[9px] md:text-[10px] text-muted-foreground leading-tight">
+                          {(dayInfo.limit / 100).toLocaleString("uk-UA", { maximumFractionDigits: 0 })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
             </button>
           );
         })}
       </div>
 
-      {/* Legend - Compact, subtle */}
-      <div className="flex justify-center gap-4 pt-2">
-        <div className="flex items-center gap-1.5">
-          <div className="w-4 h-0.5 rounded-full bg-emerald-500" />
-          <span className="text-[10px] text-muted-foreground">норма</span>
+      {/* Legend */}
+      <div className="flex justify-center gap-3 md:gap-6 mt-3 md:mt-4 overflow-x-auto px-2">
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <div className="w-2.5 h-2.5 md:w-3 md:h-3 rounded bg-emerald-400" />
+          <span className="text-[10px] md:text-xs text-muted-foreground whitespace-nowrap">&lt;50%</span>
         </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-4 h-0.5 rounded-full bg-amber-500" />
-          <span className="text-[10px] text-muted-foreground">увага</span>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <div className="w-2.5 h-2.5 md:w-3 md:h-3 rounded bg-yellow-400" />
+          <span className="text-[10px] md:text-xs text-muted-foreground whitespace-nowrap">50-80%</span>
         </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-4 h-0.5 rounded-full bg-red-500" />
-          <span className="text-[10px] text-muted-foreground">перевитрата</span>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <div className="w-2.5 h-2.5 md:w-3 md:h-3 rounded bg-orange-400" />
+          <span className="text-[10px] md:text-xs text-muted-foreground whitespace-nowrap">80-100%</span>
+        </div>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <div className="w-2.5 h-2.5 md:w-3 md:h-3 rounded bg-red-400" />
+          <span className="text-[10px] md:text-xs text-muted-foreground whitespace-nowrap">&gt;100%</span>
         </div>
       </div>
     </div>
