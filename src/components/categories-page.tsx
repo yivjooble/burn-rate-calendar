@@ -394,58 +394,65 @@ export function CategoriesPage() {
         </Card>
       )}
 
-      {/* Summary Card - Glassmorphism style matching calendar */}
+      {/* Pie Chart - Large with hover effects */}
       {categoryData.length > 0 && (
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 p-5 text-white">
           <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-blue-500/10" />
           <div className="relative">
-            <p className="text-xs text-white/60 uppercase tracking-wider mb-1">Всього витрачено</p>
-            <p className="text-3xl font-light tracking-tight mb-4">
-              {(totalExpenses / 100).toLocaleString("uk-UA", { maximumFractionDigits: 0 })}
-              <span className="text-lg text-white/60 ml-1">₴</span>
-            </p>
-            
-            {/* Horizontal bar chart - minimalist */}
-            <div className="space-y-2">
-              {categoryData.slice(0, 5).map((cat) => {
-                const percentage = totalExpenses > 0 ? (cat.total / totalExpenses) * 100 : 0;
-                return (
-                  <button
-                    key={cat.key}
-                    onClick={() => setSelectedCategory(cat.key)}
-                    className={cn(
-                      "w-full text-left transition-all rounded-lg p-2 -mx-2",
-                      selectedCategory === cat.key ? "bg-white/10" : "hover:bg-white/5"
-                    )}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm">{cat.icon}</span>
-                        <span className="text-sm font-medium text-white/90">{cat.name}</span>
-                      </div>
-                      <span className="text-sm tabular-nums text-white/70">
-                        {(cat.total / 100).toLocaleString("uk-UA", { maximumFractionDigits: 0 })} ₴
-                      </span>
-                    </div>
-                    <div className="h-1 bg-white/10 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full rounded-full transition-all duration-500"
-                        style={{ 
-                          width: `${percentage}%`,
-                          backgroundColor: cat.color 
-                        }}
-                      />
-                    </div>
-                  </button>
-                );
-              })}
+            <div className="flex flex-col items-center">
+              {/* Pie Chart */}
+              <div className="w-72 h-72 md:w-80 md:h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={categoryData.map(c => ({ ...c, value: c.total }))}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={120}
+                      paddingAngle={2}
+                      dataKey="value"
+                      nameKey="name"
+                      onClick={(data) => setSelectedCategory(data.key)}
+                      style={{ cursor: "pointer" }}
+                    >
+                      {categoryData.map((entry) => (
+                        <Cell 
+                          key={entry.key} 
+                          fill={entry.color}
+                          stroke={selectedCategory === entry.key ? "#fff" : "transparent"}
+                          strokeWidth={selectedCategory === entry.key ? 3 : 0}
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value, name) => [
+                        `${(Number(value) / 100).toLocaleString("uk-UA")} ₴`,
+                        name
+                      ]}
+                      contentStyle={{
+                        backgroundColor: "rgba(15, 23, 42, 0.95)",
+                        border: "1px solid rgba(255,255,255,0.1)",
+                        borderRadius: "12px",
+                        color: "white",
+                        padding: "12px 16px",
+                      }}
+                      labelStyle={{ color: "white", fontWeight: 600, marginBottom: 4 }}
+                      itemStyle={{ color: "rgba(255,255,255,0.8)" }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              
+              {/* Center text */}
+              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
+                <p className="text-xs text-white/50 uppercase tracking-wider">Всього</p>
+                <p className="text-2xl font-light">
+                  {(totalExpenses / 100).toLocaleString("uk-UA", { maximumFractionDigits: 0 })}
+                  <span className="text-sm text-white/50 ml-0.5">₴</span>
+                </p>
+              </div>
             </div>
-            
-            {categoryData.length > 5 && (
-              <p className="text-xs text-white/40 text-center mt-3">
-                +{categoryData.length - 5} категорій
-              </p>
-            )}
           </div>
         </div>
       )}
