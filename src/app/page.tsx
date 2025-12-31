@@ -6,6 +6,7 @@ import { BudgetCalendar } from "@/components/budget-calendar";
 import { BudgetSummary } from "@/components/budget-summary";
 import { SpendingChart } from "@/components/spending-chart";
 import { SettingsPanel } from "@/components/settings-panel";
+import { TwoFactorSettings } from "@/components/two-factor-settings";
 import { DayDetailModal } from "@/components/day-detail-modal";
 import { CategoriesPage } from "@/components/categories-page";
 import { distributeBudget } from "@/lib/budget-ai";
@@ -374,7 +375,10 @@ export default function Home() {
           )}
 
           {activeTab === "settings" && (
-            <SettingsPanel onSave={() => setActiveTab("calendar")} />
+            <div className="space-y-4">
+              <SettingsPanel onSave={() => setActiveTab("calendar")} />
+              <TwoFactorSettings />
+            </div>
           )}
         </div>
       </main>

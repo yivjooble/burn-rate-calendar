@@ -23,6 +23,10 @@ model User {
   totpEnabled   Boolean  @default(false) @map("totp_enabled")
   backupCodes   String?  @map("backup_codes")  // Encrypted JSON array of backup codes
 
+  // Password reset fields
+  resetToken       String?   @unique @map("reset_token")
+  resetTokenExpiry DateTime? @map("reset_token_expiry")
+
   settings             UserSetting[]
   transactions         UserTransaction[]
   excludedTransactions UserExcludedTransaction[]

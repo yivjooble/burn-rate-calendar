@@ -137,6 +137,7 @@ export interface DbUser {
   totp_enabled: boolean;
   totp_secret: string | null;
   backup_codes: string | null;
+  reset_token_expiry: number | null;
 }
 
 export async function createUser(
@@ -164,6 +165,7 @@ export async function createUser(
     totp_enabled: user.totpEnabled,
     totp_secret: user.totpSecret,
     backup_codes: user.backupCodes,
+    reset_token_expiry: user.resetTokenExpiry ? Math.floor(user.resetTokenExpiry.getTime() / 1000) : null,
   };
 }
 
@@ -181,6 +183,7 @@ export async function getUserByEmail(email: string): Promise<DbUser | null> {
     totp_enabled: user.totpEnabled,
     totp_secret: user.totpSecret,
     backup_codes: user.backupCodes,
+    reset_token_expiry: user.resetTokenExpiry ? Math.floor(user.resetTokenExpiry.getTime() / 1000) : null,
   };
 }
 
@@ -198,6 +201,7 @@ export async function getUserById(id: string): Promise<DbUser | null> {
     totp_enabled: user.totpEnabled,
     totp_secret: user.totpSecret,
     backup_codes: user.backupCodes,
+    reset_token_expiry: user.resetTokenExpiry ? Math.floor(user.resetTokenExpiry.getTime() / 1000) : null,
   };
 }
 
@@ -238,6 +242,73 @@ export async function updateUserBackupCodes(
   await prisma.user.update({
     where: { id: userId },
     data: { backupCodes: encryptedBackupCodes },
+  });
+}
+
+// =============================================================================
+// PASSWORD RESET
+// =============================================================================
+
+export async function setUserResetToken(
+  userId: string,
+  token: string,
+  expiryDate: Date
+): Promise<void> {
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      resetToken: token,
+      resetTokenExpiry: expiryDate,
+    },
+  });
+}
+
+export async function getUserByResetToken(token: string): Promise<DbUser | null> {
+  const user = await prisma.user.findUnique({ where: { resetToken: token } });
+  if (!user) return null;
+
+  // Check if token is expired
+  if (user.resetTokenExpiry && user.resetTokenExpiry < new Date()) {
+    return null;
+  }
+
+  return {
+    id: user.id,
+    email: user.email,
+    password_hash: user.passwordHash,
+    password_salt: user.passwordSalt,
+    created_at: Math.floor(user.createdAt.getTime() / 1000),
+    updated_at: Math.floor(user.updatedAt.getTime() / 1000),
+    totp_enabled: user.totpEnabled,
+    totp_secret: user.totpSecret,
+    backup_codes: user.backupCodes,
+    reset_token_expiry: user.resetTokenExpiry ? Math.floor(user.resetTokenExpiry.getTime() / 1000) : null,
+  };
+}
+
+export async function updateUserPassword(
+  userId: string,
+  passwordHash: string,
+  passwordSalt: string
+): Promise<void> {
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      passwordHash,
+      passwordSalt,
+      resetToken: null,
+      resetTokenExpiry: null,
+    },
+  });
+}
+
+export async function clearUserResetToken(userId: string): Promise<void> {
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      resetToken: null,
+      resetTokenExpiry: null,
+    },
   });
 }
 

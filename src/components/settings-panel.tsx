@@ -331,14 +331,17 @@ export function SettingsPanel({ onSave }: SettingsPanelProps) {
           <Label className="text-base font-semibold">Історичні дані</Label>
           
           {hasHistoricalData && (
-            <p className="text-xs text-emerald-600">
-              ✓ Історичні дані завантажено
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+              <p className="text-sm text-emerald-700 font-medium flex items-center gap-2">
+                <span className="text-emerald-600">✓</span>
+                Історичні дані завантажено
+              </p>
               {loadedPeriod.from && loadedPeriod.to && (
-                <span className="text-muted-foreground ml-1">
-                  ({format(new Date(loadedPeriod.from * 1000), "dd.MM.yyyy", { locale: uk })} - {format(new Date(loadedPeriod.to * 1000), "dd.MM.yyyy", { locale: uk })})
-                </span>
+                <p className="text-sm text-emerald-600 mt-1">
+                  Період: {format(new Date(loadedPeriod.from * 1000), "dd MMMM yyyy", { locale: uk })} — {format(new Date(loadedPeriod.to * 1000), "dd MMMM yyyy", { locale: uk })}
+                </p>
               )}
-            </p>
+            </div>
           )}
           
           <div className="space-y-2">

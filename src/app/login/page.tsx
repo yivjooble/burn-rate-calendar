@@ -3,6 +3,7 @@
 import { useState, Suspense } from "react";
 import { signIn } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -238,6 +239,12 @@ function LoginForm() {
             <p className="text-xs text-muted-foreground">
               Мінімум 8 символів. Новий email = новий акаунт.
             </p>
+            <Link
+              href="/forgot-password"
+              className="text-xs text-primary hover:underline"
+            >
+              Забули пароль?
+            </Link>
           </div>
 
           <Button type="submit" className="w-full" disabled={isLoading || isGoogleLoading}>
