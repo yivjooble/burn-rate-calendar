@@ -62,6 +62,8 @@ export type ExcludedTransactionInput = z.infer<typeof excludedTransactionSchema>
 export const historicalMetaSchema = z.object({
   lastSyncTime: z.number().int().positive().nullable().optional(),
   historicalDataLoaded: z.boolean().optional(),
+  historicalFromTime: z.number().int().positive().nullable().optional(),
+  historicalToTime: z.number().int().positive().nullable().optional(),
 });
 
 export const historicalTransactionsSchema = z.array(transactionSchema).max(100000);

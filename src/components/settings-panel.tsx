@@ -12,7 +12,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format, subMonths } from "date-fns";
 import { uk } from "date-fns/locale";
-import { loadHistoricalData, isHistoricalDataAvailable, getAllStoredTransactions } from "@/lib/mono-sync";
+import { loadHistoricalData, isHistoricalDataAvailable, getAllStoredTransactions, getLoadedPeriod } from "@/lib/mono-sync";
 
 interface SettingsPanelProps {
   onSave?: () => void;
@@ -51,20 +51,25 @@ export function SettingsPanel({ onSave }: SettingsPanelProps) {
   
   // Historical data loading state
   const [historicalDateRange, setHistoricalDateRange] = useState<{ from: Date; to: Date }>(() => ({
-    from: subMonths(new Date(), 12),
+    from: subMonths(new Date(), 3),
     to: new Date(),
   }));
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [historicalProgress, setHistoricalProgress] = useState<string | null>(null);
   const [historicalError, setHistoricalError] = useState<string | null>(null);
   const [hasHistoricalData, setHasHistoricalData] = useState(false);
+  const [loadedPeriod, setLoadedPeriod] = useState<{ from: number | null; to: number | null }>({ from: null, to: null });
   const [abortController, setAbortController] = useState<AbortController | null>(null);
 
-  // Check if historical data exists on mount
+  // Check if historical data exists on mount and get the loaded period
   useEffect(() => {
     const checkHistorical = async () => {
       const hasData = await isHistoricalDataAvailable();
       setHasHistoricalData(hasData);
+      if (hasData) {
+        const period = await getLoadedPeriod();
+        setLoadedPeriod(period);
+      }
     };
     checkHistorical();
   }, []);
@@ -126,6 +131,11 @@ export function SettingsPanel({ onSave }: SettingsPanelProps) {
       const allTransactions = await getAllStoredTransactions();
       setTransactions(allTransactions);
       setHasHistoricalData(true);
+      // Update loaded period
+      setLoadedPeriod({
+        from: Math.floor(historicalDateRange.from.getTime() / 1000),
+        to: Math.floor(historicalDateRange.to.getTime() / 1000),
+      });
       setHistoricalProgress(null);
     } catch (err) {
       if (err instanceof Error && err.message === "ABORTED") {
@@ -323,6 +333,11 @@ export function SettingsPanel({ onSave }: SettingsPanelProps) {
           {hasHistoricalData && (
             <p className="text-xs text-emerald-600">
               ✓ Історичні дані завантажено
+              {loadedPeriod.from && loadedPeriod.to && (
+                <span className="text-muted-foreground ml-1">
+                  ({format(new Date(loadedPeriod.from * 1000), "dd.MM.yyyy", { locale: uk })} - {format(new Date(loadedPeriod.to * 1000), "dd.MM.yyyy", { locale: uk })})
+                </span>
+              )}
             </p>
           )}
           

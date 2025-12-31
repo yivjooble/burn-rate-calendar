@@ -8,6 +8,8 @@ import {
   setLastSyncTime,
   getHistoricalDataLoaded,
   setHistoricalDataLoaded,
+  getHistoricalPeriod,
+  setHistoricalPeriod,
 } from "./transaction-store";
 import { subMonths, startOfMonth, endOfMonth, startOfDay } from "date-fns";
 
@@ -161,10 +163,15 @@ export async function loadHistoricalData(
     }
   }
 
-  // Save to IndexedDB
+  // Save to DB
   await saveTransactions(allTransactions);
   await setHistoricalDataLoaded(true);
   await setLastSyncTime(Date.now());
+  // Save the period that was loaded
+  await setHistoricalPeriod(
+    Math.floor(startDate.getTime() / 1000),
+    Math.floor(endDate.getTime() / 1000)
+  );
 
   return allTransactions;
 }
@@ -252,4 +259,8 @@ export async function isHistoricalDataAvailable(): Promise<boolean> {
 
 export async function getLastSync(): Promise<number | null> {
   return getLastSyncTime();
+}
+
+export async function getLoadedPeriod(): Promise<{ from: number | null; to: number | null }> {
+  return getHistoricalPeriod();
 }

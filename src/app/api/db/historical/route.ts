@@ -22,10 +22,14 @@ export async function GET(request: Request) {
     if (type === "meta") {
       const lastSyncTime = await getUserSetting(userId, "lastSyncTime");
       const historicalDataLoaded = await getUserSetting(userId, "historicalDataLoaded");
-      
+      const historicalFromTime = await getUserSetting(userId, "historicalFromTime");
+      const historicalToTime = await getUserSetting(userId, "historicalToTime");
+
       return NextResponse.json({
         lastSyncTime: lastSyncTime ? parseInt(lastSyncTime, 10) : null,
         historicalDataLoaded: historicalDataLoaded === "true",
+        historicalFromTime: historicalFromTime ? parseInt(historicalFromTime, 10) : null,
+        historicalToTime: historicalToTime ? parseInt(historicalToTime, 10) : null,
       });
     }
 
@@ -71,6 +75,12 @@ export async function POST(request: Request) {
       }
       if (validatedMeta.historicalDataLoaded !== undefined) {
         await setUserSetting(userId, "historicalDataLoaded", String(validatedMeta.historicalDataLoaded));
+      }
+      if (validatedMeta.historicalFromTime !== undefined) {
+        await setUserSetting(userId, "historicalFromTime", String(validatedMeta.historicalFromTime ?? ""));
+      }
+      if (validatedMeta.historicalToTime !== undefined) {
+        await setUserSetting(userId, "historicalToTime", String(validatedMeta.historicalToTime ?? ""));
       }
       return NextResponse.json({ success: true });
     }

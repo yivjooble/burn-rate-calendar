@@ -5,6 +5,8 @@ const API_BASE = "/api/db/historical";
 interface MetaData {
   lastSyncTime: number | null;
   historicalDataLoaded: boolean;
+  historicalFromTime?: number | null;
+  historicalToTime?: number | null;
 }
 
 export async function saveTransactions(transactions: Transaction[]): Promise<void> {
@@ -91,6 +93,18 @@ export async function getHistoricalDataLoaded(): Promise<boolean> {
 
 export async function setHistoricalDataLoaded(loaded: boolean): Promise<void> {
   await setMeta({ historicalDataLoaded: loaded });
+}
+
+export async function getHistoricalPeriod(): Promise<{ from: number | null; to: number | null }> {
+  const meta = await getMeta();
+  return {
+    from: meta.historicalFromTime || null,
+    to: meta.historicalToTime || null,
+  };
+}
+
+export async function setHistoricalPeriod(fromTime: number, toTime: number): Promise<void> {
+  await setMeta({ historicalFromTime: fromTime, historicalToTime: toTime });
 }
 
 export async function clearAllData(): Promise<void> {
