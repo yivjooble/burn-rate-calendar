@@ -94,6 +94,62 @@ export const loginSchema = z.object({
 
 export type LoginInput = z.infer<typeof loginSchema>;
 
+// Strong password requirements for registration
+export const strongPasswordSchema = z
+  .string()
+  .min(12, "Пароль повинен містити мінімум 12 символів")
+  .max(128, "Пароль занадто довгий")
+  .refine((val) => /[A-Z]/.test(val), {
+    message: "Пароль повинен містити хоча б одну велику літеру (A-Z)",
+  })
+  .refine((val) => /[a-z]/.test(val), {
+    message: "Пароль повинен містити хоча б одну малу літеру (a-z)",
+  })
+  .refine((val) => /[0-9]/.test(val), {
+    message: "Пароль повинен містити хоча б одну цифру (0-9)",
+  })
+  .refine((val) => /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(val), {
+    message: "Пароль повинен містити хоча б один спецсимвол (!@#$%...)",
+  });
+
+export const registerSchema = z.object({
+  email: z.string().email("Невірний формат email").max(255),
+  password: strongPasswordSchema,
+});
+
+export type RegisterInput = z.infer<typeof registerSchema>;
+
+// Password strength checker for UI
+export function getPasswordStrength(password: string): {
+  score: number; // 0-4
+  label: string;
+  checks: {
+    length: boolean;
+    uppercase: boolean;
+    lowercase: boolean;
+    number: boolean;
+    special: boolean;
+  };
+} {
+  const checks = {
+    length: password.length >= 12,
+    uppercase: /[A-Z]/.test(password),
+    lowercase: /[a-z]/.test(password),
+    number: /[0-9]/.test(password),
+    special: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password),
+  };
+
+  const score = Object.values(checks).filter(Boolean).length;
+
+  const labels = ["Дуже слабкий", "Слабкий", "Середній", "Сильний", "Дуже сильний"];
+
+  return {
+    score: Math.min(score, 4),
+    label: labels[Math.min(score, 4)],
+    checks,
+  };
+}
+
 // =============================================================================
 // HELPER FUNCTIONS
 // =============================================================================

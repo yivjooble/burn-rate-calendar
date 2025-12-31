@@ -55,7 +55,7 @@ export default auth(async function middleware(request) {
   }
 
   // Public routes - always accessible (after rate limit check)
-  const publicRoutes = ["/login"];
+  const publicRoutes = ["/login", "/register", "/verify-email", "/forgot-password", "/reset-password"];
   const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route));
 
   if (isPublicRoute) {

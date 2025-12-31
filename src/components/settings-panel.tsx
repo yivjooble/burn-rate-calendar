@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Settings, Eye, EyeOff, Save, RefreshCw, CreditCard, Download, CalendarIcon } from "lucide-react";
+import { Settings, Eye, EyeOff, Save, RefreshCw, CreditCard, Download, CalendarIcon, AlertTriangle, Trash2 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -39,7 +39,10 @@ const CARD_TYPE_NAMES: Record<string, string> = {
 export function SettingsPanel({ onSave }: SettingsPanelProps) {
   const { settings, setSettings, setTransactions, isHistoricalLoading, setHistoricalLoading, cachedAccounts, setCachedAccounts } = useBudgetStore();
   const [showToken, setShowToken] = useState(false);
-  const [localToken, setLocalToken] = useState(settings.monoToken || "");
+  const [localToken, setLocalToken] = useState("");
+  const [hasStoredToken, setHasStoredToken] = useState(false);
+  const [tokenSaving, setTokenSaving] = useState(false);
+  const [tokenDeleting, setTokenDeleting] = useState(false);
   const [localBudget, setLocalBudget] = useState(
     (settings.monthlyBudget / 100).toString()
   );
@@ -48,6 +51,20 @@ export function SettingsPanel({ onSave }: SettingsPanelProps) {
   );
   const [loadingAccounts, setLoadingAccounts] = useState(false);
   const [accountsError, setAccountsError] = useState<string | null>(null);
+
+  // Check if token exists on server
+  useEffect(() => {
+    const checkToken = async () => {
+      try {
+        const response = await fetch("/api/db/mono-token");
+        const data = await response.json();
+        setHasStoredToken(data.hasToken);
+      } catch (error) {
+        console.error("Failed to check token status:", error);
+      }
+    };
+    checkToken();
+  }, []);
   
   // Historical data loading state
   const [historicalDateRange, setHistoricalDateRange] = useState<{ from: Date; to: Date }>(() => ({
@@ -99,8 +116,8 @@ export function SettingsPanel({ onSave }: SettingsPanelProps) {
   };
 
   const handleLoadHistorical = async () => {
-    if (!localToken) {
-      setHistoricalError("Введіть токен Monobank");
+    if (!hasStoredToken) {
+      setHistoricalError("Спочатку збережіть токен Monobank");
       return;
     }
     if (selectedAccounts.length === 0) {
@@ -115,8 +132,8 @@ export function SettingsPanel({ onSave }: SettingsPanelProps) {
     setHistoricalProgress("Початок завантаження...");
 
     try {
+      // Token is now retrieved from DB server-side via proxy
       await loadHistoricalData(
-        localToken,
         selectedAccounts,
         (progress) => {
           if (controller.signal.aborted) {
@@ -151,18 +168,22 @@ export function SettingsPanel({ onSave }: SettingsPanelProps) {
   };
 
   const fetchAccounts = async () => {
-    if (!localToken) {
-      setAccountsError("Введіть токен");
+    if (!hasStoredToken) {
+      setAccountsError("Спочатку збережіть токен");
       return;
     }
     setLoadingAccounts(true);
     setAccountsError(null);
     try {
-      const response = await fetch("/api/mono/client-info", {
-        headers: { "x-token": localToken },
+      // Use proxy API - token is retrieved from DB server-side
+      const response = await fetch("/api/mono/proxy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ endpoint: "/personal/client-info" }),
       });
       if (!response.ok) {
-        throw new Error("Помилка завантаження");
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || "Помилка завантаження");
       }
       const data = await response.json();
       const accounts = data.accounts || [];
@@ -205,9 +226,10 @@ export function SettingsPanel({ onSave }: SettingsPanelProps) {
       const acc = cachedAccounts.find(a => a.id === id);
       return acc?.currencyCode || 980;
     });
-    
+
+    // Note: monoToken is stored separately via /api/db/mono-token
+    // and is NEVER passed to client or stored in localStorage
     setSettings({
-      monoToken: localToken,
       monthlyBudget: Math.round(parseFloat(localBudget) * 100) || 1500000,
       selectedAccountIds: selectedAccounts,
       selectedAccountCurrencies: selectedCurrencies,
@@ -241,27 +263,139 @@ export function SettingsPanel({ onSave }: SettingsPanelProps) {
 
         <div className="space-y-2">
           <Label htmlFor="token">Monobank Token</Label>
-          <div className="relative">
-            <Input
-              id="token"
-              type={showToken ? "text" : "password"}
-              value={localToken}
-              onChange={(e) => setLocalToken(e.target.value)}
-              placeholder="uXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-              className="pr-10"
-            />
-            <button
-              type="button"
-              onClick={() => setShowToken(!showToken)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            >
-              {showToken ? (
-                <EyeOff className="w-4 h-4" />
-              ) : (
-                <Eye className="w-4 h-4" />
+
+          {hasStoredToken ? (
+            <div className="space-y-2">
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                <p className="text-sm text-emerald-700 font-medium flex items-center gap-2">
+                  <span className="text-emerald-600">✓</span>
+                  Токен збережено на сервері
+                </p>
+                <p className="text-xs text-emerald-600 mt-1">
+                  Токен зашифровано і зберігається безпечно
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  id="token"
+                  type={showToken ? "text" : "password"}
+                  value={localToken}
+                  onChange={(e) => setLocalToken(e.target.value)}
+                  placeholder="Введіть новий токен для заміни"
+                  className="flex-1"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowToken(!showToken)}
+                  className="px-3 text-muted-foreground hover:text-foreground"
+                >
+                  {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              <div className="flex gap-2">
+                {localToken && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      setTokenSaving(true);
+                      try {
+                        const response = await fetch("/api/db/mono-token", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ token: localToken }),
+                        });
+                        if (response.ok) {
+                          setLocalToken("");
+                          setHasStoredToken(true);
+                        }
+                      } finally {
+                        setTokenSaving(false);
+                      }
+                    }}
+                    disabled={tokenSaving}
+                  >
+                    {tokenSaving ? "Збереження..." : "Оновити токен"}
+                  </Button>
+                )}
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={async () => {
+                    if (!confirm("Ви впевнені, що хочете видалити токен?")) return;
+                    setTokenDeleting(true);
+                    try {
+                      const response = await fetch("/api/db/mono-token", { method: "DELETE" });
+                      if (response.ok) {
+                        setHasStoredToken(false);
+                        setCachedAccounts([]);
+                      }
+                    } finally {
+                      setTokenDeleting(false);
+                    }
+                  }}
+                  disabled={tokenDeleting}
+                >
+                  <Trash2 className="w-3 h-3 mr-1" />
+                  {tokenDeleting ? "Видалення..." : "Видалити"}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <div className="relative">
+                <Input
+                  id="token"
+                  type={showToken ? "text" : "password"}
+                  value={localToken}
+                  onChange={(e) => setLocalToken(e.target.value)}
+                  placeholder="uXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowToken(!showToken)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                >
+                  {showToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+              {localToken && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={async () => {
+                    setTokenSaving(true);
+                    try {
+                      const response = await fetch("/api/db/mono-token", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ token: localToken }),
+                      });
+                      if (response.ok) {
+                        setLocalToken("");
+                        setHasStoredToken(true);
+                      }
+                    } finally {
+                      setTokenSaving(false);
+                    }
+                  }}
+                  disabled={tokenSaving}
+                >
+                  {tokenSaving ? "Збереження..." : "Зберегти токен"}
+                </Button>
               )}
-            </button>
+            </div>
+          )}
+
+          <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg">
+            <p className="text-xs text-amber-700 flex items-start gap-2">
+              <AlertTriangle className="w-3 h-3 mt-0.5 flex-shrink-0" />
+              <span>Токен зберігається зашифрованим на сервері. Для максимальної безпеки рекомендуємо мобільний додаток (скоро).</span>
+            </p>
           </div>
+
           <p className="text-xs text-muted-foreground">
             Отримайте токен на{" "}
             <a
@@ -283,7 +417,7 @@ export function SettingsPanel({ onSave }: SettingsPanelProps) {
               variant="ghost"
               size="sm"
               onClick={fetchAccounts}
-              disabled={loadingAccounts || !localToken}
+              disabled={loadingAccounts || !hasStoredToken}
             >
               <RefreshCw className={`w-3 h-3 ${loadingAccounts ? "animate-spin" : ""}`} />
             </Button>
@@ -316,7 +450,7 @@ export function SettingsPanel({ onSave }: SettingsPanelProps) {
             </div>
           ) : (
             <p className="text-xs text-muted-foreground">
-              {localToken ? "Натисніть оновити для завантаження карток" : "Введіть токен для завантаження карток"}
+              {hasStoredToken ? "Натисніть оновити для завантаження карток" : "Збережіть токен для завантаження карток"}
             </p>
           )}
         </div>
@@ -414,11 +548,11 @@ export function SettingsPanel({ onSave }: SettingsPanelProps) {
           )}
 
           <div className="flex gap-2">
-            <Button 
-              onClick={handleLoadHistorical} 
+            <Button
+              onClick={handleLoadHistorical}
               className="flex-1"
               variant="outline"
-              disabled={isHistoricalLoading || !localToken || selectedAccounts.length === 0}
+              disabled={isHistoricalLoading || !hasStoredToken || selectedAccounts.length === 0}
             >
               <Download className="w-4 h-4 mr-2" />
               {isHistoricalLoading ? "Завантаження..." : "Завантажити історичні дані"}

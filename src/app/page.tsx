@@ -48,9 +48,24 @@ export default function Home() {
   const [syncProgress, setSyncProgress] = useState<string | null>(null);
   const [hasHistoricalData, setHasHistoricalData] = useState(false);
   const [currencyRates, setCurrencyRates] = useState<CurrencyRate[]>([]);
+  const [hasMonoToken, setHasMonoToken] = useState(false);
   const backgroundSyncRef = useRef<NodeJS.Timeout | null>(null);
 
   const { initFromDb, dbInitialized } = useBudgetStore();
+
+  // Check if Monobank token exists on server
+  useEffect(() => {
+    const checkToken = async () => {
+      try {
+        const response = await fetch("/api/db/mono-token");
+        const data = await response.json();
+        setHasMonoToken(data.hasToken);
+      } catch (error) {
+        console.error("Failed to check token status:", error);
+      }
+    };
+    checkToken();
+  }, []);
 
   // Load active tab from localStorage and init from DB on mount
   useEffect(() => {
@@ -114,8 +129,8 @@ export default function Home() {
 
   // Refresh only today's transactions (quick update)
   const refreshToday = useCallback(async () => {
-    if (!settings.monoToken) {
-      setError("Введіть токен Monobank в налаштуваннях");
+    if (!hasMonoToken) {
+      setError("Збережіть токен Monobank в налаштуваннях");
       return;
     }
 
@@ -123,11 +138,12 @@ export default function Home() {
     setError(null);
 
     try {
-      const accountIds = settings.selectedAccountIds?.length 
-        ? settings.selectedAccountIds 
+      const accountIds = settings.selectedAccountIds?.length
+        ? settings.selectedAccountIds
         : [settings.accountId];
 
-      await refreshTodayTransactions(settings.monoToken, accountIds);
+      // Token is now retrieved from DB server-side via proxy
+      await refreshTodayTransactions(accountIds);
       await loadFromStorage();
       setLastRefresh(new Date());
     } catch (err) {
@@ -135,12 +151,12 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
-  }, [settings.monoToken, settings.accountId, settings.selectedAccountIds, loadFromStorage, setLoading, setError]);
+  }, [hasMonoToken, settings.accountId, settings.selectedAccountIds, loadFromStorage, setLoading, setError]);
 
   // Refresh today's transactions only (no full historical sync)
   const fetchMonoData = useCallback(async () => {
-    if (!settings.monoToken) {
-      setError("Введіть токен Monobank в налаштуваннях");
+    if (!hasMonoToken) {
+      setError("Збережіть токен Monobank в налаштуваннях");
       return;
     }
 
@@ -148,7 +164,7 @@ export default function Home() {
     // Historical data should be loaded via Settings panel
     await refreshToday();
   }, [
-    settings.monoToken,
+    hasMonoToken,
     refreshToday,
     setError,
   ]);
@@ -173,7 +189,7 @@ export default function Home() {
 
   // Background sync every 5 minutes
   useEffect(() => {
-    if (!isHydrated || !settings.monoToken || !hasHistoricalData) return;
+    if (!isHydrated || !hasMonoToken || !hasHistoricalData) return;
 
     const startBackgroundSync = () => {
       if (backgroundSyncRef.current) {
@@ -182,10 +198,11 @@ export default function Home() {
 
       backgroundSyncRef.current = setInterval(async () => {
         try {
-          const accountIds = settings.selectedAccountIds?.length 
-            ? settings.selectedAccountIds 
+          const accountIds = settings.selectedAccountIds?.length
+            ? settings.selectedAccountIds
             : [settings.accountId];
-          await refreshTodayTransactions(settings.monoToken!, accountIds);
+          // Token is now retrieved from DB server-side via proxy
+          await refreshTodayTransactions(accountIds);
           await loadFromStorage();
           setLastRefresh(new Date());
         } catch {
@@ -201,7 +218,7 @@ export default function Home() {
         clearInterval(backgroundSyncRef.current);
       }
     };
-  }, [isHydrated, settings.monoToken, settings.accountId, settings.selectedAccountIds, hasHistoricalData, loadFromStorage]);
+  }, [isHydrated, hasMonoToken, settings.accountId, settings.selectedAccountIds, hasHistoricalData, loadFromStorage]);
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -298,14 +315,19 @@ export default function Home() {
               <span className="hidden sm:inline">Налаштування</span>
             </Button>
             <Separator orientation="vertical" className="h-6 mx-1" />
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => signOut({ callbackUrl: "/login" })}
-              title={session?.user?.email || "Вийти"}
-            >
-              <LogOut className="w-4 h-4" />
-            </Button>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground hidden sm:inline truncate max-w-[150px]">
+                {session?.user?.name || session?.user?.email?.split("@")[0]}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => signOut({ callbackUrl: "/login" })}
+                title={session?.user?.email || "Вийти"}
+              >
+                <LogOut className="w-4 h-4" />
+              </Button>
+            </div>
           </div>
         </div>
       </header>
@@ -328,12 +350,12 @@ export default function Home() {
                   {lastRefresh && (
                     <span>Оновлено: {lastRefresh.toLocaleTimeString("uk-UA")} • </span>
                   )}
-                  {settings.monoToken ? (
+                  {hasMonoToken ? (
                     <span>
                       Monobank грудень 2025
                       {settings.selectedAccountCurrencies && settings.selectedAccountCurrencies.length > 0 && (
                         <span className="ml-1 text-xs">
-                          ({[...new Set(settings.selectedAccountCurrencies)].map(code => 
+                          ({[...new Set(settings.selectedAccountCurrencies)].map(code =>
                             code === 980 ? "UAH" : code === 840 ? "USD" : code === 978 ? "EUR" : code
                           ).join(", ")})
                         </span>
@@ -347,7 +369,7 @@ export default function Home() {
                   variant="outline"
                   size="sm"
                   onClick={() => fetchMonoData()}
-                  disabled={isLoading || !settings.monoToken}
+                  disabled={isLoading || !hasMonoToken}
                 >
                   <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
                   {isLoading ? (syncProgress || "Завантаження...") : "Оновити"}

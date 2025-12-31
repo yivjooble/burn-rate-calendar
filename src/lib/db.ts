@@ -313,6 +313,138 @@ export async function clearUserResetToken(userId: string): Promise<void> {
 }
 
 // =============================================================================
+// EMAIL VERIFICATION
+// =============================================================================
+
+/**
+ * Create an unverified user (registration step 1)
+ */
+export async function createUnverifiedUser(
+  id: string,
+  email: string,
+  passwordHash: string,
+  passwordSalt: string,
+  verificationToken: string,
+  verificationExpiry: Date
+): Promise<DbUser> {
+  const user = await prisma.user.create({
+    data: {
+      id,
+      email,
+      passwordHash,
+      passwordSalt,
+      emailVerified: false,
+      verificationToken,
+      verificationExpiry,
+    },
+  });
+
+  return {
+    id: user.id,
+    email: user.email,
+    password_hash: user.passwordHash,
+    password_salt: user.passwordSalt,
+    created_at: Math.floor(user.createdAt.getTime() / 1000),
+    updated_at: Math.floor(user.updatedAt.getTime() / 1000),
+    totp_enabled: user.totpEnabled,
+    totp_secret: user.totpSecret,
+    backup_codes: user.backupCodes,
+    reset_token_expiry: user.resetTokenExpiry ? Math.floor(user.resetTokenExpiry.getTime() / 1000) : null,
+  };
+}
+
+/**
+ * Get user by verification token
+ */
+export async function getUserByVerificationToken(token: string): Promise<{
+  id: string;
+  email: string;
+  emailVerified: boolean;
+  verificationExpiry: Date | null;
+} | null> {
+  const user = await prisma.user.findUnique({
+    where: { verificationToken: token },
+    select: {
+      id: true,
+      email: true,
+      emailVerified: true,
+      verificationExpiry: true,
+    }
+  });
+
+  if (!user) return null;
+
+  // Check if token is expired
+  if (user.verificationExpiry && user.verificationExpiry < new Date()) {
+    return null;
+  }
+
+  return user;
+}
+
+/**
+ * Verify user email (mark as verified)
+ */
+export async function verifyUserEmail(userId: string): Promise<void> {
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      emailVerified: true,
+      verificationToken: null,
+      verificationExpiry: null,
+    },
+  });
+}
+
+/**
+ * Delete unverified user (cleanup expired registrations)
+ */
+export async function deleteUnverifiedUser(userId: string): Promise<void> {
+  await prisma.user.delete({
+    where: { id: userId },
+  });
+}
+
+/**
+ * Check if user email is verified
+ */
+export async function isUserEmailVerified(userId: string): Promise<boolean> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { emailVerified: true },
+  });
+  return user?.emailVerified ?? false;
+}
+
+/**
+ * Check if user email is verified by email address
+ */
+export async function isEmailVerified(email: string): Promise<boolean> {
+  const user = await prisma.user.findUnique({
+    where: { email },
+    select: { emailVerified: true },
+  });
+  return user?.emailVerified ?? false;
+}
+
+/**
+ * Update verification token (for resend)
+ */
+export async function updateVerificationToken(
+  userId: string,
+  verificationToken: string,
+  verificationExpiry: Date
+): Promise<void> {
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      verificationToken,
+      verificationExpiry,
+    },
+  });
+}
+
+// =============================================================================
 // PER-USER SETTINGS
 // =============================================================================
 

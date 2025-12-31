@@ -1,8 +1,8 @@
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 import Credentials from "next-auth/providers/credentials";
-import { getUserByEmail, createUser, updateUserBackupCodes } from "@/lib/db";
-import { scryptSync, randomBytes, timingSafeEqual } from "crypto";
+import { getUserByEmail, updateUserBackupCodes, isEmailVerified, createUser } from "@/lib/db";
+import { scryptSync, timingSafeEqual, randomBytes } from "crypto";
 import { verifyTotpCode, verifyBackupCode, decrypt, encrypt } from "@/lib/totp";
 
 /**
@@ -109,6 +109,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             }
           }
 
+          // Check if email is verified (skip for legacy users without emailVerified field)
+          const emailVerified = await isEmailVerified(email);
+          // Legacy users (created before email verification) are considered verified
+          // New users must verify their email
+          if (!emailVerified && existingUser.created_at > Math.floor(Date.now() / 1000) - 86400) {
+            // Only enforce for users created in the last 24 hours
+            // This gives grace period for users created just before this feature
+            console.log("[AUTH] Email not verified for:", email);
+            throw new Error("EMAIL_NOT_VERIFIED");
+          }
+
           console.log("[AUTH] Login successful for:", email);
           return {
             id: existingUser.id,
@@ -117,24 +128,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           };
         }
 
-        // Create new user (first-time registration)
-        console.log("[AUTH] Creating new user:", email);
-        const newUserId = randomBytes(16).toString("hex");
-        const { hash, salt } = hashPassword(password);
-
-        try {
-          await createUser(newUserId, email, hash, salt);
-          console.log("[AUTH] User created successfully:", email);
-
-          return {
-            id: newUserId,
-            email: email,
-            name: email.split("@")[0],
-          };
-        } catch (error) {
-          console.error("[AUTH] Failed to create user:", error);
-          return null;
-        }
+        // No auto-registration - user must register first
+        console.log("[AUTH] User not found:", email);
+        return null;
       },
     }),
   ],

@@ -53,6 +53,8 @@ function LoginForm() {
         } else if (result.error === "2FA_REQUIRED" || result.error.includes("2FA_REQUIRED")) {
           setRequires2FA(true);
           setError(null);
+        } else if (result.error === "EMAIL_NOT_VERIFIED" || result.error.includes("EMAIL_NOT_VERIFIED")) {
+          setError("Email не підтверджено. Перевірте вашу пошту для активації акаунту.");
         } else if (requires2FA) {
           setError("Невірний код двофакторної автентифікації");
         } else {
@@ -236,9 +238,6 @@ function LoginForm() {
               minLength={8}
               disabled={isGoogleLoading}
             />
-            <p className="text-xs text-muted-foreground">
-              Мінімум 8 символів. Новий email = новий акаунт.
-            </p>
             <Link
               href="/forgot-password"
               className="text-xs text-primary hover:underline"
@@ -258,6 +257,13 @@ function LoginForm() {
             )}
           </Button>
         </form>
+
+        <div className="text-center text-sm">
+          <span className="text-muted-foreground">Немає акаунту? </span>
+          <Link href="/register" className="text-primary hover:underline">
+            Зареєструватися
+          </Link>
+        </div>
       </CardContent>
     </Card>
   );

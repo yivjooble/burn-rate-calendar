@@ -66,19 +66,21 @@ export const useBudgetStore = create<BudgetState>()(
         set((state) => ({
           settings: { ...state.settings, ...newSettings },
         }));
-        // Sync to DB - only sync the changed settings
-        Object.entries(newSettings).forEach(([key, value]) => {
-          if (value !== undefined) {
-            // Convert arrays to JSON strings for storage
-            const stringValue = Array.isArray(value) ? JSON.stringify(value) : String(value);
-            fetch("/api/db/settings", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ key, value: stringValue }),
-              credentials: "include",
-            }).catch(console.error);
-          }
-        });
+        // Sync to DB - only sync the changed settings (excluding monoToken)
+        Object.entries(newSettings)
+          .filter(([key]) => key !== "monoToken")
+          .forEach(([key, value]) => {
+            if (value !== undefined) {
+              // Convert arrays to JSON strings for storage
+              const stringValue = Array.isArray(value) ? JSON.stringify(value) : String(value);
+              fetch("/api/db/settings", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ key, value: stringValue }),
+                credentials: "include",
+              }).catch(console.error);
+            }
+          });
       },
 
       setMonthBudget: (budget) => set({ monthBudget: budget }),
@@ -187,7 +189,8 @@ export const useBudgetStore = create<BudgetState>()(
           if (settingsRes.ok) {
             const dbSettings = await settingsRes.json();
             const settings: Partial<UserSettings> = {};
-            if (dbSettings.monoToken) settings.monoToken = dbSettings.monoToken;
+            // Note: monoToken is NOT returned from settings API for security
+            // Token status is checked via /api/db/mono-token instead
             if (dbSettings.monthlyBudget) settings.monthlyBudget = Number(dbSettings.monthlyBudget);
             if (dbSettings.accountId) settings.accountId = dbSettings.accountId;
             // Parse JSON arrays from DB
@@ -234,18 +237,20 @@ export const useBudgetStore = create<BudgetState>()(
       syncToDb: async () => {
         const state = get();
         try {
-          // Sync settings
+          // Sync settings (excluding monoToken which is managed via separate API)
           await Promise.all(
-            Object.entries(state.settings).map(([key, value]) =>
-              value !== undefined
-                ? fetch("/api/db/settings", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ key, value: String(value) }),
-                    credentials: "include",
-                  })
-                : Promise.resolve()
-            )
+            Object.entries(state.settings)
+              .filter(([key]) => key !== "monoToken")
+              .map(([key, value]) =>
+                value !== undefined
+                  ? fetch("/api/db/settings", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ key, value: String(value) }),
+                      credentials: "include",
+                    })
+                  : Promise.resolve()
+              )
           );
 
           // Sync transactions
@@ -265,7 +270,12 @@ export const useBudgetStore = create<BudgetState>()(
     {
       name: "burn-rate-storage",
       partialize: (state) => ({
-        settings: state.settings,
+        settings: {
+          ...state.settings,
+          // NEVER persist monoToken to localStorage for security
+          // Token is stored encrypted in database only
+          monoToken: undefined,
+        },
         // excludedTransactionIds - loaded from SQLite DB only, not localStorage
         // transactions - loaded from SQLite DB only, not localStorage
         monthBudget: state.monthBudget,

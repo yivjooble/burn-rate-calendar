@@ -27,6 +27,11 @@ model User {
   resetToken       String?   @unique @map("reset_token")
   resetTokenExpiry DateTime? @map("reset_token_expiry")
 
+  // Email verification fields
+  emailVerified       Boolean   @default(false) @map("email_verified")
+  verificationToken   String?   @unique @map("verification_token")
+  verificationExpiry  DateTime? @map("verification_expiry")
+
   settings             UserSetting[]
   transactions         UserTransaction[]
   excludedTransactions UserExcludedTransaction[]

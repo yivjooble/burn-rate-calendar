@@ -37,11 +37,14 @@ export async function fetchCurrencyRates(): Promise<CurrencyRate[]> {
   return [];
 }
 
-async function fetchAccountCurrencies(token: string): Promise<Record<string, number>> {
+async function fetchAccountCurrencies(): Promise<Record<string, number>> {
   const currencies: Record<string, number> = {};
   try {
-    const response = await fetch("/api/mono/client-info", {
-      headers: { "x-token": token },
+    // Use proxy API - token is retrieved from DB server-side
+    const response = await fetch("/api/mono/proxy", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ endpoint: "/personal/client-info" }),
     });
     if (response.ok) {
       const clientInfo = await response.json();
@@ -56,16 +59,19 @@ async function fetchAccountCurrencies(token: string): Promise<Record<string, num
 }
 
 async function fetchMonthTransactions(
-  token: string,
   accountId: string,
   currencyCode: number,
   from: number,
   to: number
 ): Promise<Transaction[]> {
-  const response = await fetch(
-    `/api/mono/statement?account=${accountId}&from=${from}&to=${to}&currencyCode=${currencyCode}`,
-    { headers: { "x-token": token } }
-  );
+  // Use proxy API - token is retrieved from DB server-side
+  const response = await fetch("/api/mono/proxy", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      endpoint: `/personal/statement/${accountId}/${from}/${to}`,
+    }),
+  });
 
   if (response.status === 429) {
     throw new Error("RATE_LIMIT");
@@ -76,16 +82,18 @@ async function fetchMonthTransactions(
     throw new Error(errData.error || `Error: ${response.status}`);
   }
 
-  return await response.json();
+  const data = await response.json();
+  // Add currencyCode to each transaction
+  return data.map((tx: Transaction) => ({ ...tx, currencyCode }));
 }
 
 export async function loadHistoricalData(
-  token: string,
   accountIds: string[],
   onProgress?: (progress: SyncProgress) => void,
   dateRange?: { from: Date; to: Date }
 ): Promise<Transaction[]> {
-  const accountCurrencies = await fetchAccountCurrencies(token);
+  // Token is now retrieved from DB server-side via proxy
+  const accountCurrencies = await fetchAccountCurrencies();
   const now = new Date();
   
   // Calculate months to fetch based on date range or default to 12 months
@@ -133,7 +141,6 @@ export async function loadHistoricalData(
 
       try {
         const transactions = await fetchMonthTransactions(
-          token,
           accountId,
           currencyCode,
           from,
@@ -147,7 +154,6 @@ export async function loadHistoricalData(
           await new Promise((resolve) => setTimeout(resolve, 61000));
           try {
             const transactions = await fetchMonthTransactions(
-              token,
               accountId,
               currencyCode,
               from,
@@ -177,10 +183,10 @@ export async function loadHistoricalData(
 }
 
 export async function refreshTodayTransactions(
-  token: string,
   accountIds: string[]
 ): Promise<Transaction[]> {
-  const accountCurrencies = await fetchAccountCurrencies(token);
+  // Token is now retrieved from DB server-side via proxy
+  const accountCurrencies = await fetchAccountCurrencies();
   const now = new Date();
   const todayStart = startOfDay(now);
   const from = Math.floor(todayStart.getTime() / 1000);
@@ -202,7 +208,6 @@ export async function refreshTodayTransactions(
 
     try {
       const transactions = await fetchMonthTransactions(
-        token,
         accountId,
         currencyCode,
         from,
@@ -224,20 +229,19 @@ export async function refreshTodayTransactions(
 }
 
 export async function syncTransactions(
-  token: string,
   accountIds: string[],
   onProgress?: (progress: SyncProgress) => void
 ): Promise<SyncResult> {
   const isHistoricalLoaded = await getHistoricalDataLoaded();
 
   if (!isHistoricalLoaded) {
-    // First time - load all historical data
-    const transactions = await loadHistoricalData(token, accountIds, onProgress);
+    // First time - load all historical data (token retrieved from DB via proxy)
+    const transactions = await loadHistoricalData(accountIds, onProgress);
     return { transactions, isInitialLoad: true };
   }
 
   // Just refresh today's transactions
-  await refreshTodayTransactions(token, accountIds);
+  await refreshTodayTransactions(accountIds);
   const allTransactions = await getAllTransactions();
   return { transactions: allTransactions, isInitialLoad: false };
 }
