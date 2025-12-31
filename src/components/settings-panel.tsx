@@ -91,7 +91,20 @@ export function SettingsPanel({ onSave }: SettingsPanelProps) {
       setHasHistoricalData(hasData);
       if (hasData) {
         const period = await getLoadedPeriod();
-        setLoadedPeriod(period);
+        // If period is not saved (legacy data), calculate from transactions
+        if (!period.from || !period.to) {
+          const allTx = await getAllStoredTransactions();
+          if (allTx.length > 0) {
+            const times = allTx.map(tx => tx.time);
+            const minTime = Math.min(...times);
+            const maxTime = Math.max(...times);
+            setLoadedPeriod({ from: minTime, to: maxTime });
+          } else {
+            setLoadedPeriod(period);
+          }
+        } else {
+          setLoadedPeriod(period);
+        }
       }
     };
     checkHistorical();
