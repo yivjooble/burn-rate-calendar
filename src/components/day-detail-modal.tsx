@@ -157,53 +157,53 @@ export function DayDetailModal({ day, onClose, onExcludeTransaction }: DayDetail
   };
 
   return (
-    <div 
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+    <div
+      className="fixed inset-0 bg-black/50 flex items-end md:items-center justify-center z-50 md:p-4"
       onClick={onClose}
     >
-      <Card 
-        className="w-full max-w-lg max-h-[85vh] overflow-hidden"
+      <Card
+        className="w-full md:max-w-lg max-h-[90vh] md:max-h-[85vh] overflow-hidden rounded-t-2xl md:rounded-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="text-lg">
+        <CardHeader className="flex flex-row items-center justify-between pb-2 sticky top-0 bg-card z-10">
+          <CardTitle className="text-base md:text-lg">
             {format(day.date, "d MMMM yyyy", { locale: uk })}
           </CardTitle>
           <button
             onClick={onClose}
-            className="p-1 hover:bg-muted rounded-full transition-colors"
+            className="p-2 hover:bg-muted rounded-full transition-colors -mr-1"
           >
             <X className="w-5 h-5" />
           </button>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 pb-6 md:pb-4">
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Статус</span>
             {getStatusBadge()}
           </div>
 
-          <div className="grid grid-cols-3 gap-2 text-center">
+          <div className="grid grid-cols-3 gap-1.5 md:gap-2 text-center">
             <div className="p-2 bg-muted rounded-lg">
-              <div className="text-lg font-bold text-red-500">
+              <div className="text-base md:text-lg font-bold text-red-500">
                 {(day.spent / 100).toFixed(0)} ₴
               </div>
-              <div className="text-xs text-muted-foreground">Витрачено</div>
+              <div className="text-[10px] md:text-xs text-muted-foreground">Витрачено</div>
             </div>
             <div className="p-2 bg-muted rounded-lg">
-              <div className="text-lg font-bold">
+              <div className="text-base md:text-lg font-bold">
                 {(day.limit / 100).toFixed(0)} ₴
               </div>
-              <div className="text-xs text-muted-foreground">Ліміт</div>
+              <div className="text-[10px] md:text-xs text-muted-foreground">Ліміт</div>
             </div>
             <div className="p-2 bg-muted rounded-lg">
               <div
-                className={`text-lg font-bold ${
+                className={`text-base md:text-lg font-bold ${
                   day.remaining >= 0 ? "text-emerald-500" : "text-red-500"
                 }`}
               >
                 {(day.remaining / 100).toFixed(0)} ₴
               </div>
-              <div className="text-xs text-muted-foreground">Залишок</div>
+              <div className="text-[10px] md:text-xs text-muted-foreground">Залишок</div>
             </div>
           </div>
 
@@ -289,11 +289,11 @@ export function DayDetailModal({ day, onClose, onExcludeTransaction }: DayDetail
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="h-7 w-7 p-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                             onClick={() => handleExclude(tx.id)}
                             title="Не враховувати"
                           >
-                            <EyeOff className="w-3 h-3" />
+                            <EyeOff className="w-4 h-4" />
                           </Button>
                         </div>
                       </div>
@@ -404,11 +404,11 @@ export function DayDetailModal({ day, onClose, onExcludeTransaction }: DayDetail
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                          className="h-7 w-7 p-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                           onClick={() => handleInclude(tx.id)}
                           title="Повернути до витрат"
                         >
-                          <Eye className="w-3 h-3" />
+                          <Eye className="w-4 h-4" />
                         </Button>
                       </div>
                     </div>

@@ -6,8 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Settings, Eye, EyeOff, Save, RefreshCw, CreditCard, Download, CalendarIcon, Trash2 } from "lucide-react";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Settings, Eye, EyeOff, Save, RefreshCw, CreditCard, Download, CalendarIcon, Trash2, Check } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format, subMonths } from "date-fns";
@@ -43,11 +42,8 @@ export function SettingsPanel({ onSave }: SettingsPanelProps) {
   const [hasStoredToken, setHasStoredToken] = useState(false);
   const [tokenSaving, setTokenSaving] = useState(false);
   const [tokenDeleting, setTokenDeleting] = useState(false);
-  const [localBudget, setLocalBudget] = useState(
-    (settings.monthlyBudget / 100).toString()
-  );
-  const [selectedAccounts, setSelectedAccounts] = useState<string[]>(
-    settings.selectedAccountIds || []
+  const [selectedAccountId, setSelectedAccountId] = useState<string>(
+    settings.accountId || ""
   );
   const [loadingAccounts, setLoadingAccounts] = useState(false);
   const [accountsError, setAccountsError] = useState<string | null>(null);
@@ -120,8 +116,8 @@ export function SettingsPanel({ onSave }: SettingsPanelProps) {
       setHistoricalError("Спочатку збережіть токен Monobank");
       return;
     }
-    if (selectedAccounts.length === 0) {
-      setHistoricalError("Оберіть хоча б одну картку");
+    if (!selectedAccountId) {
+      setHistoricalError("Оберіть картку");
       return;
     }
 
@@ -134,7 +130,7 @@ export function SettingsPanel({ onSave }: SettingsPanelProps) {
     try {
       // Token is now retrieved from DB server-side via proxy
       await loadHistoricalData(
-        selectedAccounts,
+        [selectedAccountId],
         (progress) => {
           if (controller.signal.aborted) {
             throw new Error("ABORTED");
@@ -189,10 +185,10 @@ export function SettingsPanel({ onSave }: SettingsPanelProps) {
       const accounts = data.accounts || [];
       setCachedAccounts(accounts);
       // Auto-select first UAH account if none selected
-      if (selectedAccounts.length === 0 && accounts.length > 0) {
+      if (!selectedAccountId && accounts.length > 0) {
         const uahAccount = accounts.find((a: { currencyCode: number }) => a.currencyCode === 980);
         if (uahAccount) {
-          setSelectedAccounts([uahAccount.id]);
+          setSelectedAccountId(uahAccount.id);
         }
       }
     } catch (err) {
@@ -204,12 +200,8 @@ export function SettingsPanel({ onSave }: SettingsPanelProps) {
 
   // No auto-fetch - accounts are only loaded manually via refresh button
 
-  const toggleAccount = (accountId: string) => {
-    setSelectedAccounts(prev =>
-      prev.includes(accountId)
-        ? prev.filter(id => id !== accountId)
-        : [...prev, accountId]
-    );
+  const selectAccount = (accountId: string) => {
+    setSelectedAccountId(accountId);
   };
 
   const getAccountLabel = (account: { currencyCode: number; type: string; maskedPan?: string[] }) => {
@@ -221,19 +213,15 @@ export function SettingsPanel({ onSave }: SettingsPanelProps) {
   };
 
   const handleSave = () => {
-    // Get currency codes for selected accounts
-    const selectedCurrencies = selectedAccounts.map(id => {
-      const acc = cachedAccounts.find(a => a.id === id);
-      return acc?.currencyCode || 980;
-    });
+    // Get the selected account's details
+    const selectedAccount = cachedAccounts.find(a => a.id === selectedAccountId);
 
     // Note: monoToken is stored separately via /api/db/mono-token
     // and is NEVER passed to client or stored in localStorage
     setSettings({
-      monthlyBudget: Math.round(parseFloat(localBudget) * 100) || 1500000,
-      selectedAccountIds: selectedAccounts,
-      selectedAccountCurrencies: selectedCurrencies,
-      accountId: selectedAccounts[0] || "0",
+      accountId: selectedAccountId,
+      accountBalance: selectedAccount?.balance || 0,
+      accountCurrency: selectedAccount?.currencyCode || 980,
     });
     onSave?.();
   };
@@ -247,20 +235,6 @@ export function SettingsPanel({ onSave }: SettingsPanelProps) {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="budget">Місячний бюджет (₴)</Label>
-          <Input
-            id="budget"
-            type="number"
-            value={localBudget}
-            onChange={(e) => setLocalBudget(e.target.value)}
-            placeholder="15000"
-          />
-          <p className="text-xs text-muted-foreground">
-            AI розподілить цю суму на дні місяця
-          </p>
-        </div>
-
         <div className="space-y-2">
           <Label htmlFor="token">Monobank Token</Label>
 
@@ -401,10 +375,10 @@ export function SettingsPanel({ onSave }: SettingsPanelProps) {
           </p>
         </div>
 
-        {/* Account Selection */}
+        {/* Account Selection - Single card */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <Label>Картки для відображення</Label>
+            <Label>Оберіть картку</Label>
             <Button
               variant="ghost"
               size="sm"
@@ -414,6 +388,9 @@ export function SettingsPanel({ onSave }: SettingsPanelProps) {
               <RefreshCw className={`w-3 h-3 ${loadingAccounts ? "animate-spin" : ""}`} />
             </Button>
           </div>
+          <p className="text-xs text-muted-foreground">
+            Бюджет буде розраховуватись з поточного балансу обраної картки
+          </p>
           {accountsError && (
             <p className="text-xs text-red-500">{accountsError}</p>
           )}
@@ -421,24 +398,34 @@ export function SettingsPanel({ onSave }: SettingsPanelProps) {
             <div className="space-y-2 max-h-48 overflow-y-auto">
               {cachedAccounts
                 .filter(account => !['eAid', 'madeInUkraine'].includes(account.type))
-                .map((account) => (
-                <label
-                  key={account.id}
-                  className="flex items-center gap-3 p-2 rounded-lg border hover:bg-muted/50 cursor-pointer"
-                >
-                  <Checkbox
-                    checked={selectedAccounts.includes(account.id)}
-                    onCheckedChange={() => toggleAccount(account.id)}
-                  />
-                  <CreditCard className="w-4 h-4 text-muted-foreground" />
-                  <div className="flex-1">
-                    <div className="text-sm font-medium">{getAccountLabel(account)}</div>
-                    <div className="text-xs text-muted-foreground">
-                      Баланс: {(account.balance / 100).toLocaleString("uk-UA")} {CURRENCY_NAMES[account.currencyCode] || ""}
-                    </div>
-                  </div>
-                </label>
-              ))}
+                .map((account) => {
+                  const isSelected = selectedAccountId === account.id;
+                  return (
+                    <button
+                      key={account.id}
+                      type="button"
+                      onClick={() => selectAccount(account.id)}
+                      className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-colors text-left ${
+                        isSelected
+                          ? "border-primary bg-primary/5"
+                          : "hover:bg-muted/50"
+                      }`}
+                    >
+                      <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                        isSelected ? "border-primary bg-primary" : "border-muted-foreground/30"
+                      }`}>
+                        {isSelected && <Check className="w-3 h-3 text-primary-foreground" />}
+                      </div>
+                      <CreditCard className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium truncate">{getAccountLabel(account)}</div>
+                        <div className="text-xs text-muted-foreground">
+                          Баланс: {(account.balance / 100).toLocaleString("uk-UA")} {CURRENCY_NAMES[account.currencyCode] || ""}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
             </div>
           ) : (
             <p className="text-xs text-muted-foreground">
@@ -542,7 +529,7 @@ export function SettingsPanel({ onSave }: SettingsPanelProps) {
               onClick={handleLoadHistorical}
               className="flex-1"
               variant="outline"
-              disabled={isHistoricalLoading || !hasStoredToken || selectedAccounts.length === 0}
+              disabled={isHistoricalLoading || !hasStoredToken || !selectedAccountId}
             >
               <Download className="w-4 h-4 mr-2" />
               {isHistoricalLoading ? "Завантаження..." : "Завантажити історичні дані"}

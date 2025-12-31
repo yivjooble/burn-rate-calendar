@@ -30,6 +30,7 @@ export default function Home() {
   const { data: session } = useSession();
   const {
     settings,
+    setSettings,
     setMonthBudget,
     monthBudget,
     transactions,
@@ -85,38 +86,68 @@ export default function Home() {
     }
   }, [activeTab, isHydrated]);
 
+  // Refresh account balance from Monobank API
+  const refreshAccountBalance = useCallback(async () => {
+    if (!hasMonoToken || !settings.accountId) return;
+
+    try {
+      const response = await fetch("/api/mono/proxy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ endpoint: "/personal/client-info" }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const account = data.accounts?.find((a: { id: string }) => a.id === settings.accountId);
+        if (account) {
+          setSettings({
+            accountBalance: account.balance,
+            accountCurrency: account.currencyCode,
+          });
+        }
+      }
+    } catch (err) {
+      console.error("Failed to refresh account balance:", err);
+    }
+  }, [hasMonoToken, settings.accountId, setSettings]);
+
   // Load stored transactions and calculate budget
   const loadFromStorage = useCallback(async () => {
     try {
       const rates = await fetchCurrencyRates();
       setCurrencyRates(rates);
-      
+
       const storedTransactions = await getAllStoredTransactions();
       if (storedTransactions.length > 0) {
         setTransactions(storedTransactions);
-        
+
         // Filter to current month for budget calculation
         const now = new Date();
         const { from: currentFrom, to: currentTo } = getMonthBoundaries(now);
         const currentMonthTx = storedTransactions.filter(
           tx => tx.time >= currentFrom && tx.time <= currentTo
         );
-        
+
         // Convert to UAH for budget
         const transactionsInUAH = currentMonthTx.map(tx => ({
           ...tx,
           amount: Math.round(convertToUAH(tx.amount, tx.currencyCode, rates)),
         }));
 
+        // Use account balance as the budget (convert to UAH if needed)
+        const budgetAmount = settings.accountBalance
+          ? Math.round(convertToUAH(settings.accountBalance, settings.accountCurrency, rates))
+          : 0;
+
         const budget = distributeBudget(
-          settings.monthlyBudget,
+          budgetAmount,
           new Date(),
           [],
           transactionsInUAH,
           excludedTransactionIds
         );
         setMonthBudget(budget);
-        
+
         const lastSync = await getLastSync();
         if (lastSync) {
           setLastRefresh(new Date(lastSync));
@@ -125,9 +156,9 @@ export default function Home() {
     } catch (err) {
       console.error("Error loading from storage:", err);
     }
-  }, [settings.monthlyBudget, excludedTransactionIds, setTransactions, setMonthBudget]);
+  }, [settings.accountBalance, settings.accountCurrency, excludedTransactionIds, setTransactions, setMonthBudget]);
 
-  // Refresh only today's transactions (quick update)
+  // Refresh only today's transactions and account balance (quick update)
   const refreshToday = useCallback(async () => {
     if (!hasMonoToken) {
       setError("Збережіть токен Monobank в налаштуваннях");
@@ -138,12 +169,13 @@ export default function Home() {
     setError(null);
 
     try {
-      const accountIds = settings.selectedAccountIds?.length
-        ? settings.selectedAccountIds
-        : [settings.accountId];
+      // Refresh account balance first
+      await refreshAccountBalance();
 
-      // Token is now retrieved from DB server-side via proxy
-      await refreshTodayTransactions(accountIds);
+      // Then refresh today's transactions
+      if (settings.accountId) {
+        await refreshTodayTransactions([settings.accountId]);
+      }
       await loadFromStorage();
       setLastRefresh(new Date());
     } catch (err) {
@@ -151,7 +183,7 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
-  }, [hasMonoToken, settings.accountId, settings.selectedAccountIds, loadFromStorage, setLoading, setError]);
+  }, [hasMonoToken, settings.accountId, refreshAccountBalance, loadFromStorage, setLoading, setError]);
 
   // Refresh today's transactions only (no full historical sync)
   const fetchMonoData = useCallback(async () => {
@@ -187,9 +219,9 @@ export default function Home() {
     initData();
   }, [isHydrated, loadFromStorage]);
 
-  // Background sync every 5 minutes
+  // Background sync every 5 minutes - refresh balance and transactions
   useEffect(() => {
-    if (!isHydrated || !hasMonoToken || !hasHistoricalData) return;
+    if (!isHydrated || !hasMonoToken || !hasHistoricalData || !settings.accountId) return;
 
     const startBackgroundSync = () => {
       if (backgroundSyncRef.current) {
@@ -198,11 +230,10 @@ export default function Home() {
 
       backgroundSyncRef.current = setInterval(async () => {
         try {
-          const accountIds = settings.selectedAccountIds?.length
-            ? settings.selectedAccountIds
-            : [settings.accountId];
-          // Token is now retrieved from DB server-side via proxy
-          await refreshTodayTransactions(accountIds);
+          // Refresh account balance
+          await refreshAccountBalance();
+          // Refresh today's transactions
+          await refreshTodayTransactions([settings.accountId]);
           await loadFromStorage();
           setLastRefresh(new Date());
         } catch {
@@ -218,20 +249,21 @@ export default function Home() {
         clearInterval(backgroundSyncRef.current);
       }
     };
-  }, [isHydrated, hasMonoToken, settings.accountId, settings.selectedAccountIds, hasHistoricalData, loadFromStorage]);
+  }, [isHydrated, hasMonoToken, settings.accountId, hasHistoricalData, refreshAccountBalance, loadFromStorage]);
 
   useEffect(() => {
     if (!isHydrated) return;
 
     // Always create empty budget structure so calendar is visible
     if (!monthBudget) {
-      const budget = distributeBudget(settings.monthlyBudget, new Date(), [], [], excludedTransactionIds);
+      const budgetAmount = settings.accountBalance || 0;
+      const budget = distributeBudget(budgetAmount, new Date(), [], [], excludedTransactionIds);
       setMonthBudget(budget);
     }
-  }, [isHydrated, settings.monthlyBudget, monthBudget, excludedTransactionIds, setMonthBudget]);
+  }, [isHydrated, settings.accountBalance, monthBudget, excludedTransactionIds, setMonthBudget]);
 
-  // Recalculate budget when excluded transactions change
-  const recalculateBudget = useCallback(() => {
+  // Recalculate budget when excluded transactions or balance change
+  const recalculateBudget = useCallback(async () => {
     if (transactions.length > 0) {
       // Filter to current month for budget calculation
       const now = new Date();
@@ -239,9 +271,15 @@ export default function Home() {
       const currentMonthTx = transactions.filter(
         tx => tx.time >= currentFrom && tx.time <= currentTo
       );
-      
+
+      // Convert balance to UAH if needed
+      const rates = currencyRates.length > 0 ? currencyRates : await fetchCurrencyRates();
+      const budgetAmount = settings.accountBalance
+        ? Math.round(convertToUAH(settings.accountBalance, settings.accountCurrency, rates))
+        : 0;
+
       const budget = distributeBudget(
-        settings.monthlyBudget,
+        budgetAmount,
         new Date(),
         [],
         currentMonthTx,
@@ -249,7 +287,7 @@ export default function Home() {
       );
       setMonthBudget(budget);
     }
-  }, [transactions, settings.monthlyBudget, excludedTransactionIds, setMonthBudget]);
+  }, [transactions, settings.accountBalance, settings.accountCurrency, currencyRates, excludedTransactionIds, setMonthBudget]);
 
   useEffect(() => {
     if (isHydrated && transactions.length > 0) {
@@ -267,8 +305,8 @@ export default function Home() {
 
   return (
     <div className="fixed inset-0 flex flex-col bg-background">
-      {/* Header */}
-      <header className="flex-shrink-0 border-b bg-background/95 backdrop-blur h-14">
+      {/* Header - Desktop only */}
+      <header className="flex-shrink-0 border-b bg-background/95 backdrop-blur h-14 hidden md:block">
         <div className="h-full max-w-4xl mx-auto px-4 flex items-center justify-between">
           <button
             onClick={() => setActiveTab("calendar")}
@@ -277,7 +315,7 @@ export default function Home() {
             <Flame className="w-6 h-6 text-orange-500" />
             <span className="font-semibold">Burn Rate Calendar</span>
           </button>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-1">
             <Button
               variant={activeTab === "calendar" ? "default" : "ghost"}
               size="sm"
@@ -285,7 +323,7 @@ export default function Home() {
               disabled={isLoading || isHistoricalLoading}
             >
               <Calendar className="w-4 h-4 mr-1" />
-              <span className="hidden sm:inline">Календар</span>
+              Календар
             </Button>
             <Button
               variant={activeTab === "categories" ? "default" : "ghost"}
@@ -294,7 +332,7 @@ export default function Home() {
               disabled={isLoading || isHistoricalLoading}
             >
               <Tags className="w-4 h-4 mr-1" />
-              <span className="hidden sm:inline">Категорії</span>
+              Категорії
             </Button>
             <Button
               variant={activeTab === "prediction" ? "default" : "ghost"}
@@ -303,7 +341,7 @@ export default function Home() {
               disabled={isLoading || isHistoricalLoading}
             >
               <ChartLine className="w-4 h-4 mr-1" />
-              <span className="hidden sm:inline">Статистика</span>
+              Статистика
             </Button>
             <Button
               variant={activeTab === "settings" ? "default" : "ghost"}
@@ -312,11 +350,11 @@ export default function Home() {
               disabled={isLoading || isHistoricalLoading}
             >
               <Settings className="w-4 h-4 mr-1" />
-              <span className="hidden sm:inline">Налаштування</span>
+              Налаштування
             </Button>
-            <Separator orientation="vertical" className="h-6 mx-1" />
+            <Separator orientation="vertical" className="h-6 mx-2" />
             <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground hidden sm:inline truncate max-w-[150px]">
+              <span className="text-sm text-muted-foreground truncate max-w-[150px]">
                 {session?.user?.name || session?.user?.email?.split("@")[0]}
               </span>
               <Button
@@ -328,6 +366,29 @@ export default function Home() {
                 <LogOut className="w-4 h-4" />
               </Button>
             </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Mobile Header */}
+      <header className="flex-shrink-0 border-b bg-background/95 backdrop-blur h-12 md:hidden">
+        <div className="h-full px-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Flame className="w-5 h-5 text-orange-500" />
+            <span className="font-semibold text-sm">Burn Rate</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground truncate max-w-[100px]">
+              {session?.user?.name || session?.user?.email?.split("@")[0]}
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 w-8 p-0"
+              onClick={() => signOut({ callbackUrl: "/login" })}
+            >
+              <LogOut className="w-4 h-4" />
+            </Button>
           </div>
         </div>
       </header>
@@ -397,13 +458,67 @@ export default function Home() {
           )}
 
           {activeTab === "settings" && (
-            <div className="space-y-4">
+            <div className="space-y-4 pb-20 md:pb-4">
               <SettingsPanel onSave={() => setActiveTab("calendar")} />
               <TwoFactorSettings />
             </div>
           )}
         </div>
       </main>
+
+      {/* Mobile Bottom Navigation */}
+      <nav className="flex-shrink-0 border-t bg-background/95 backdrop-blur md:hidden safe-area-bottom">
+        <div className="grid grid-cols-4 h-16">
+          <button
+            onClick={() => setActiveTab("calendar")}
+            disabled={isLoading || isHistoricalLoading}
+            className={`flex flex-col items-center justify-center gap-1 transition-colors ${
+              activeTab === "calendar"
+                ? "text-foreground"
+                : "text-muted-foreground"
+            }`}
+          >
+            <Calendar className="w-5 h-5" />
+            <span className="text-[10px]">Календар</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("categories")}
+            disabled={isLoading || isHistoricalLoading}
+            className={`flex flex-col items-center justify-center gap-1 transition-colors ${
+              activeTab === "categories"
+                ? "text-foreground"
+                : "text-muted-foreground"
+            }`}
+          >
+            <Tags className="w-5 h-5" />
+            <span className="text-[10px]">Категорії</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("prediction")}
+            disabled={isLoading || isHistoricalLoading}
+            className={`flex flex-col items-center justify-center gap-1 transition-colors ${
+              activeTab === "prediction"
+                ? "text-foreground"
+                : "text-muted-foreground"
+            }`}
+          >
+            <ChartLine className="w-5 h-5" />
+            <span className="text-[10px]">Статистика</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("settings")}
+            disabled={isLoading || isHistoricalLoading}
+            className={`flex flex-col items-center justify-center gap-1 transition-colors ${
+              activeTab === "settings"
+                ? "text-foreground"
+                : "text-muted-foreground"
+            }`}
+          >
+            <Settings className="w-5 h-5" />
+            <span className="text-[10px]">Налаштув.</span>
+          </button>
+        </div>
+      </nav>
 
       {selectedDay && (
         <DayDetailModal day={selectedDay} onClose={() => setSelectedDay(null)} />

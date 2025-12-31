@@ -47,11 +47,11 @@ export function BudgetCalendar({ dailyLimits, onDayClick }: BudgetCalendarProps)
       </h2>
 
       {/* Weekday headers */}
-      <div className="grid grid-cols-7 gap-2 mb-2">
+      <div className="grid grid-cols-7 gap-1 md:gap-2 mb-1 md:mb-2">
         {weekDays.map((day) => (
           <div
             key={day}
-            className="text-center text-sm font-medium text-muted-foreground"
+            className="text-center text-xs md:text-sm font-medium text-muted-foreground"
           >
             {day}
           </div>
@@ -59,16 +59,16 @@ export function BudgetCalendar({ dailyLimits, onDayClick }: BudgetCalendarProps)
       </div>
 
       {/* Calendar grid - compact cells */}
-      <div className="grid grid-cols-7 gap-1.5">
+      <div className="grid grid-cols-7 gap-1 md:gap-1.5">
         {Array.from({ length: paddingDays }).map((_, i) => (
-          <div key={`padding-${i}`} className="h-16 sm:h-20" />
+          <div key={`padding-${i}`} className="h-14 md:h-20" />
         ))}
 
         {days.map((day) => {
           const dayData = getDayData(day);
           const barHeight = dayData ? getBarHeight(dayData) : 0;
           const barColor = dayData ? getBarColor(dayData) : "bg-gray-100";
-          
+
           // Check if this is a past day with no spending (not today)
           const isPastWithNoSpending = !isToday(day) && day < new Date() && dayData && dayData.spent === 0;
 
@@ -77,7 +77,7 @@ export function BudgetCalendar({ dailyLimits, onDayClick }: BudgetCalendarProps)
               key={day.toISOString()}
               onClick={() => dayData && onDayClick?.(dayData)}
               className={cn(
-                "relative h-16 sm:h-20 rounded-lg border overflow-hidden transition-all hover:shadow-md hover:border-primary/50",
+                "relative h-14 md:h-20 rounded-md md:rounded-lg border overflow-hidden transition-all active:scale-95 md:hover:shadow-md md:hover:border-primary/50",
                 isToday(day) && "ring-2 ring-primary ring-offset-1",
                 dayData?.status === "over" && "border-red-300",
                 isPastWithNoSpending ? "bg-gray-200" : "bg-card"
@@ -92,18 +92,18 @@ export function BudgetCalendar({ dailyLimits, onDayClick }: BudgetCalendarProps)
                   style={{ height: isPastWithNoSpending ? "0%" : `${barHeight}%` }}
                 />
 
-                <div className="relative z-10 p-1.5 flex flex-col h-full">
-                  <div className="flex items-center gap-1">
+                <div className="relative z-10 p-1 md:p-1.5 flex flex-col h-full">
+                  <div className="flex items-center gap-0.5 md:gap-1">
                     <span
                       className={cn(
-                        "text-sm font-medium",
+                        "text-xs md:text-sm font-medium",
                         isToday(day) ? "text-primary font-bold" : "text-foreground/80"
                       )}
                     >
                       {format(day, "d")}
                     </span>
                     {isToday(day) && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                      <span className="w-1 h-1 md:w-1.5 md:h-1.5 rounded-full bg-primary animate-pulse" />
                     )}
                   </div>
 
@@ -111,15 +111,15 @@ export function BudgetCalendar({ dailyLimits, onDayClick }: BudgetCalendarProps)
                     <div className="mt-auto">
                       {dayData.spent > 0 ? (
                         <>
-                          <div className="text-xs font-semibold text-foreground/70">
+                          <div className="text-[10px] md:text-xs font-semibold text-foreground/70 leading-tight">
                             {(dayData.spent / 100).toLocaleString("uk-UA", { maximumFractionDigits: 0 })}
                           </div>
-                          <div className="text-[10px] text-muted-foreground">
+                          <div className="text-[9px] md:text-[10px] text-muted-foreground leading-tight">
                             /{(dayData.limit / 100).toLocaleString("uk-UA", { maximumFractionDigits: 0 })}
                           </div>
                         </>
                       ) : (
-                        <div className="text-[10px] text-muted-foreground">
+                        <div className="text-[9px] md:text-[10px] text-muted-foreground leading-tight">
                           {(dayData.limit / 100).toLocaleString("uk-UA", { maximumFractionDigits: 0 })}
                         </div>
                       )}
@@ -132,23 +132,23 @@ export function BudgetCalendar({ dailyLimits, onDayClick }: BudgetCalendarProps)
         })}
       </div>
 
-      {/* Legend */}
-      <div className="flex justify-center gap-6 mt-4">
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded bg-emerald-400" />
-          <span className="text-xs text-muted-foreground">&lt;50%</span>
+      {/* Legend - scrollable on mobile */}
+      <div className="flex justify-center gap-3 md:gap-6 mt-3 md:mt-4 overflow-x-auto px-2">
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <div className="w-2.5 h-2.5 md:w-3 md:h-3 rounded bg-emerald-400" />
+          <span className="text-[10px] md:text-xs text-muted-foreground whitespace-nowrap">&lt;50%</span>
         </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded bg-yellow-400" />
-          <span className="text-xs text-muted-foreground">50-80%</span>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <div className="w-2.5 h-2.5 md:w-3 md:h-3 rounded bg-yellow-400" />
+          <span className="text-[10px] md:text-xs text-muted-foreground whitespace-nowrap">50-80%</span>
         </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded bg-orange-400" />
-          <span className="text-xs text-muted-foreground">80-100%</span>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <div className="w-2.5 h-2.5 md:w-3 md:h-3 rounded bg-orange-400" />
+          <span className="text-[10px] md:text-xs text-muted-foreground whitespace-nowrap">80-100%</span>
         </div>
-        <div className="flex items-center gap-1.5">
-          <div className="w-3 h-3 rounded bg-red-400" />
-          <span className="text-xs text-muted-foreground">&gt;100%</span>
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <div className="w-2.5 h-2.5 md:w-3 md:h-3 rounded bg-red-400" />
+          <span className="text-[10px] md:text-xs text-muted-foreground whitespace-nowrap">&gt;100%</span>
         </div>
       </div>
     </div>

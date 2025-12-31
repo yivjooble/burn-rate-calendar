@@ -162,19 +162,19 @@ function LoginForm() {
 
   return (
     <Card className="w-full max-w-md">
-      <CardHeader className="text-center">
-        <div className="flex justify-center mb-4">
+      <CardHeader className="text-center px-4 md:px-6">
+        <div className="flex justify-center mb-3 md:mb-4">
           <div className="flex items-center gap-2">
-            <Flame className="w-8 h-8 text-orange-500" />
-            <span className="text-2xl font-bold">Burn Rate Calendar</span>
+            <Flame className="w-6 h-6 md:w-8 md:h-8 text-orange-500" />
+            <span className="text-xl md:text-2xl font-bold">Burn Rate Calendar</span>
           </div>
         </div>
-        <CardTitle>Вхід</CardTitle>
+        <CardTitle className="text-lg md:text-xl">Вхід</CardTitle>
         <CardDescription>
           Увійдіть через Google або використайте email та пароль.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-4 px-4 md:px-6">
         {error && (
           <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
             <AlertCircle className="w-4 h-4 flex-shrink-0" />

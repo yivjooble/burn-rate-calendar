@@ -42,8 +42,9 @@ interface BudgetState {
 }
 
 const initialSettings: UserSettings = {
-  monthlyBudget: 1500000,
-  accountId: "0",
+  accountId: "",
+  accountBalance: 0,
+  accountCurrency: 980, // UAH by default
 };
 
 export const useBudgetStore = create<BudgetState>()(
@@ -191,23 +192,11 @@ export const useBudgetStore = create<BudgetState>()(
             const settings: Partial<UserSettings> = {};
             // Note: monoToken is NOT returned from settings API for security
             // Token status is checked via /api/db/mono-token instead
-            if (dbSettings.monthlyBudget) settings.monthlyBudget = Number(dbSettings.monthlyBudget);
             if (dbSettings.accountId) settings.accountId = dbSettings.accountId;
-            // Parse JSON arrays from DB
-            if (dbSettings.selectedAccountIds) {
-              try {
-                settings.selectedAccountIds = JSON.parse(dbSettings.selectedAccountIds);
-              } catch {
-                settings.selectedAccountIds = [];
-              }
-            }
-            if (dbSettings.selectedAccountCurrencies) {
-              try {
-                settings.selectedAccountCurrencies = JSON.parse(dbSettings.selectedAccountCurrencies);
-              } catch {
-                settings.selectedAccountCurrencies = [];
-              }
-            }
+            if (dbSettings.accountBalance) settings.accountBalance = Number(dbSettings.accountBalance);
+            if (dbSettings.accountCurrency) settings.accountCurrency = Number(dbSettings.accountCurrency);
+            // Legacy support for monthlyBudget
+            if (dbSettings.monthlyBudget) settings.monthlyBudget = Number(dbSettings.monthlyBudget);
             if (Object.keys(settings).length > 0) {
               set((state) => ({ settings: { ...state.settings, ...settings } }));
             }

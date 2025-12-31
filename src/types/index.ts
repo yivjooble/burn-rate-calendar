@@ -72,10 +72,12 @@ export interface MonthBudget {
 
 export interface UserSettings {
   monoToken?: string;
-  monthlyBudget: number;
-  accountId: string;
-  selectedAccountIds?: string[];
-  selectedAccountCurrencies?: number[]; // Currency codes for selected accounts
+  monthlyBudget?: number; // Deprecated - now uses card balance
+  accountId: string; // Selected card ID
+  accountBalance?: number; // Current balance of selected card (in kopecks)
+  accountCurrency?: number; // Currency code of selected card
+  selectedAccountIds?: string[]; // Deprecated - now single account
+  selectedAccountCurrencies?: number[]; // Deprecated
 }
 
 export interface MonoClientInfo {
