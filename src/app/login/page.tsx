@@ -40,20 +40,37 @@ function LoginForm() {
     setIsLoading(true);
 
     try {
-      const result = await signIn("credentials", {
+      // Build credentials object - only include totpCode if 2FA is required
+      const credentials: Record<string, string | boolean> = {
         email,
         password,
-        totpCode: requires2FA ? totpCode : undefined,
         redirect: false,
+      };
+      if (requires2FA && totpCode) {
+        credentials.totpCode = totpCode;
+      }
+
+      console.log("[LOGIN] Attempting signIn with:", {
+        email,
+        hasPassword: !!password,
+        requires2FA,
+        hasTotpCode: !!totpCode
       });
 
+      const result = await signIn("credentials", credentials) as { ok?: boolean; error?: string; status?: number } | undefined;
+
+      console.log("[LOGIN] signIn result:", result);
+
       if (result?.error) {
+        const errorStr = String(result.error || "");
+
         if (result.status === 429) {
           setError("Забагато спроб. Зачекайте хвилину і спробуйте знову.");
-        } else if (result.error === "2FA_REQUIRED" || result.error.includes("2FA_REQUIRED")) {
+        } else if (errorStr.includes("2FA_REQUIRED")) {
+          console.log("[LOGIN] 2FA required detected, showing 2FA form");
           setRequires2FA(true);
           setError(null);
-        } else if (result.error === "EMAIL_NOT_VERIFIED" || result.error.includes("EMAIL_NOT_VERIFIED")) {
+        } else if (errorStr.includes("EMAIL_NOT_VERIFIED")) {
           setError("Email не підтверджено. Перевірте вашу пошту для активації акаунту.");
         } else if (requires2FA) {
           setError("Невірний код двофакторної автентифікації");

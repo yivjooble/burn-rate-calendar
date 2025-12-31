@@ -78,8 +78,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
           // Check 2FA if enabled
           if (existingUser.totp_enabled && existingUser.totp_secret) {
-            if (!totpCode) {
-              console.log("[AUTH] 2FA required but no code provided for:", email);
+            // Check for truly empty/missing totpCode (handle serialization issues)
+            const hasValidTotpCode = totpCode && totpCode.trim() !== "" && totpCode !== "undefined";
+            console.log("[AUTH] 2FA check:", {
+              totpEnabled: true,
+              totpCodeReceived: totpCode,
+              hasValidCode: hasValidTotpCode
+            });
+
+            if (!hasValidTotpCode) {
+              console.log("[AUTH] 2FA required but no valid code provided for:", email);
               // Throw a special error that the client can detect
               throw new Error("2FA_REQUIRED");
             }
