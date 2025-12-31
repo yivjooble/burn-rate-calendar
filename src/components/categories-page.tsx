@@ -29,6 +29,7 @@ import { format, subMonths, startOfMonth, endOfMonth, isSameMonth, eachWeekOfInt
 import { uk } from "date-fns/locale";
 import { isExpense } from "@/lib/monobank";
 import { useBudgetStore } from "@/store/budget-store";
+import { cn } from "@/lib/utils";
 import { getMccCategory, getCategoryByKey, getAllCategories, MCC_CATEGORIES, getCategoryFromDescription } from "@/lib/mcc-categories";
 import {
   LineChart,
@@ -393,125 +394,77 @@ export function CategoriesPage() {
         </Card>
       )}
 
-      {/* Pie Chart for category distribution */}
+      {/* Summary Card - Glassmorphism style matching calendar */}
       {categoryData.length > 0 && (
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Розподіл витрат</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex flex-col md:flex-row items-center gap-4">
-              <div className="w-64 h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={categoryData.map(c => ({ ...c, value: c.total }))}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={50}
-                      outerRadius={100}
-                      paddingAngle={2}
-                      dataKey="value"
-                      nameKey="name"
-                      onClick={(data) => setSelectedCategory(data.key)}
-                      style={{ cursor: "pointer" }}
-                    >
-                      {categoryData.map((entry) => (
-                        <Cell 
-                          key={entry.key} 
-                          fill={entry.color}
-                          stroke={selectedCategory === entry.key ? "#000" : "transparent"}
-                          strokeWidth={selectedCategory === entry.key ? 2 : 0}
-                        />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      formatter={(value) => [
-                        `${(Number(value) / 100).toLocaleString("uk-UA")} ₴`,
-                        "Сума"
-                      ]}
-                      contentStyle={{
-                        backgroundColor: "white",
-                        border: "1px solid #e5e7eb",
-                        borderRadius: "8px",
-                      }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="flex flex-wrap gap-2 justify-center md:justify-start">
-                {categoryData.slice(0, 8).map((cat) => (
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 p-5 text-white">
+          <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-blue-500/10" />
+          <div className="relative">
+            <p className="text-xs text-white/60 uppercase tracking-wider mb-1">Всього витрачено</p>
+            <p className="text-3xl font-light tracking-tight mb-4">
+              {(totalExpenses / 100).toLocaleString("uk-UA", { maximumFractionDigits: 0 })}
+              <span className="text-lg text-white/60 ml-1">₴</span>
+            </p>
+            
+            {/* Horizontal bar chart - minimalist */}
+            <div className="space-y-2">
+              {categoryData.slice(0, 5).map((cat) => {
+                const percentage = totalExpenses > 0 ? (cat.total / totalExpenses) * 100 : 0;
+                return (
                   <button
                     key={cat.key}
                     onClick={() => setSelectedCategory(cat.key)}
-                    className={`flex items-center gap-1.5 px-2 py-1 rounded-full text-xs transition-all ${
-                      selectedCategory === cat.key 
-                        ? "ring-2 ring-offset-1 ring-gray-400" 
-                        : "hover:bg-muted"
-                    }`}
-                    style={{ backgroundColor: `${cat.color}20` }}
+                    className={cn(
+                      "w-full text-left transition-all rounded-lg p-2 -mx-2",
+                      selectedCategory === cat.key ? "bg-white/10" : "hover:bg-white/5"
+                    )}
                   >
-                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: cat.color }} />
-                    <span className="font-medium">{cat.name}</span>
-                    <span className="text-muted-foreground">
-                      {totalExpenses > 0 ? ((cat.total / totalExpenses) * 100).toFixed(0) : 0}%
-                    </span>
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">{cat.icon}</span>
+                        <span className="text-sm font-medium text-white/90">{cat.name}</span>
+                      </div>
+                      <span className="text-sm tabular-nums text-white/70">
+                        {(cat.total / 100).toLocaleString("uk-UA", { maximumFractionDigits: 0 })} ₴
+                      </span>
+                    </div>
+                    <div className="h-1 bg-white/10 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full rounded-full transition-all duration-500"
+                        style={{ 
+                          width: `${percentage}%`,
+                          backgroundColor: cat.color 
+                        }}
+                      />
+                    </div>
                   </button>
-                ))}
-              </div>
+                );
+              })}
             </div>
-          </CardContent>
-        </Card>
+            
+            {categoryData.length > 5 && (
+              <p className="text-xs text-white/40 text-center mt-3">
+                +{categoryData.length - 5} категорій
+              </p>
+            )}
+          </div>
+        </div>
       )}
 
-      {/* Categories list */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span>Категорії ({categoryData.length})</span>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-7 px-2 text-xs">
-                    <ArrowUpDown className="w-3 h-3 mr-1" />
-                    {categorySortBy === "amount" ? "Сума" : categorySortBy === "count" ? "Кількість" : "Назва"}
-                    {categorySortOrder === "desc" ? <ArrowDown className="w-3 h-3 ml-1" /> : <ArrowUp className="w-3 h-3 ml-1" />}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start">
-                  <DropdownMenuItem onClick={() => { setCategorySortBy("amount"); setCategorySortOrder("desc"); }}>
-                    За сумою (спадання)
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => { setCategorySortBy("amount"); setCategorySortOrder("asc"); }}>
-                    За сумою (зростання)
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => { setCategorySortBy("count"); setCategorySortOrder("desc"); }}>
-                    За кількістю (спадання)
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => { setCategorySortBy("count"); setCategorySortOrder("asc"); }}>
-                    За кількістю (зростання)
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => { setCategorySortBy("name"); setCategorySortOrder("asc"); }}>
-                    За назвою (А-Я)
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => { setCategorySortBy("name"); setCategorySortOrder("desc"); }}>
-                    За назвою (Я-А)
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+      {/* Categories Grid - Modern cards */}
+      {categoryData.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-medium text-muted-foreground">Всі категорії</h3>
             <Dialog open={newCategoryDialogOpen} onOpenChange={setNewCategoryDialogOpen}>
               <DialogTrigger asChild>
-                <Button variant="outline" size="sm">
-                  <Plus className="w-4 h-4 mr-1" />
-                  Нова категорія
-                </Button>
+                <button className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
+                  <Plus className="w-3 h-3" />
+                  Додати
+                </button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Створити нову категорію</DialogTitle>
+                  <DialogTitle>Нова категорія</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4 pt-4">
                   <div className="space-y-2">
@@ -525,7 +478,7 @@ export function CategoriesPage() {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="category-icon">Іконка (emoji)</Label>
+                      <Label htmlFor="category-icon">Іконка</Label>
                       <Input
                         id="category-icon"
                         value={newCategoryIcon}
@@ -551,56 +504,77 @@ export function CategoriesPage() {
                     </span>
                   </div>
                   <Button onClick={handleCreateCategory} className="w-full" disabled={!newCategoryName.trim()}>
-                    Створити категорію
+                    Створити
                   </Button>
                 </div>
               </DialogContent>
             </Dialog>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {categoryData.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">
-              Немає даних. Натисніть "Оновити" для завантаження.
-            </p>
-          ) : (
-            <div className="space-y-2 max-h-64 overflow-y-auto">
-              {categoryData.map((category) => {
-                const percentage = totalExpenses > 0 ? (category.total / totalExpenses) * 100 : 0;
-                const isSelected = selectedCategory === category.key;
-                
-                return (
-                  <div
-                    key={category.key}
-                    className={`flex items-center justify-between p-2 rounded-lg cursor-pointer transition-colors ${
-                      isSelected ? "bg-blue-50 border border-blue-200" : "bg-muted/30 hover:bg-muted/50"
-                    }`}
-                    onClick={() => setSelectedCategory(category.key)}
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="text-xl">{category.icon}</span>
-                      <div>
-                        <div className="font-medium text-sm">{category.name}</div>
-                        <div className="text-xs text-muted-foreground">
-                          {category.count} транзакцій
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-bold text-sm" style={{ color: category.color }}>
-                        {(category.total / 100).toLocaleString("uk-UA")} {getCurrencySymbol(category.currencyCode)}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {percentage.toFixed(1)}%
-                      </div>
-                    </div>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-2">
+            {categoryData.map((category) => {
+              const percentage = totalExpenses > 0 ? (category.total / totalExpenses) * 100 : 0;
+              const isSelected = selectedCategory === category.key;
+              
+              return (
+                <button
+                  key={category.key}
+                  onClick={() => setSelectedCategory(category.key)}
+                  className={cn(
+                    "relative p-3 rounded-xl text-left transition-all active:scale-[0.98]",
+                    isSelected 
+                      ? "bg-slate-900 text-white shadow-lg" 
+                      : "bg-muted/30 hover:bg-muted/50"
+                  )}
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <span className="text-lg">{category.icon}</span>
+                    <span className={cn(
+                      "text-[10px] px-1.5 py-0.5 rounded-full",
+                      isSelected ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"
+                    )}>
+                      {percentage.toFixed(0)}%
+                    </span>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                  <p className={cn(
+                    "text-sm font-medium truncate",
+                    isSelected ? "text-white" : "text-foreground"
+                  )}>
+                    {category.name}
+                  </p>
+                  <p className={cn(
+                    "text-lg font-light tabular-nums",
+                    isSelected ? "text-white/90" : "text-foreground/70"
+                  )}>
+                    {(category.total / 100).toLocaleString("uk-UA", { maximumFractionDigits: 0 })}
+                    <span className="text-xs ml-0.5">₴</span>
+                  </p>
+                  <p className={cn(
+                    "text-[10px] mt-1",
+                    isSelected ? "text-white/50" : "text-muted-foreground"
+                  )}>
+                    {category.count} транзакцій
+                  </p>
+                  
+                  {/* Progress indicator */}
+                  <div className={cn(
+                    "absolute bottom-0 left-3 right-3 h-0.5 rounded-full overflow-hidden",
+                    isSelected ? "bg-white/20" : "bg-muted"
+                  )}>
+                    <div 
+                      className="h-full rounded-full transition-all duration-300"
+                      style={{ 
+                        width: `${percentage}%`,
+                        backgroundColor: isSelected ? "white" : category.color 
+                      }}
+                    />
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Transactions list for selected category */}
       {selectedCategory && selectedCategoryInfo && (
