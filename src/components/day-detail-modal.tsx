@@ -158,14 +158,14 @@ export function DayDetailModal({ day, onClose, onExcludeTransaction }: DayDetail
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 flex items-end md:items-center justify-center z-50 md:p-4"
+      className="fixed inset-0 bg-black/60 flex items-end md:items-center justify-center z-50 md:p-4"
       onClick={onClose}
     >
       <Card
-        className="w-full md:max-w-lg max-h-[90vh] md:max-h-[85vh] overflow-hidden rounded-t-2xl md:rounded-xl"
+        className="w-full md:max-w-lg h-[85vh] md:h-auto md:max-h-[85vh] overflow-hidden rounded-t-2xl md:rounded-xl flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
-        <CardHeader className="flex flex-row items-center justify-between pb-2 sticky top-0 bg-card z-10">
+        <CardHeader className="flex flex-row items-center justify-between pb-2 flex-shrink-0">
           <CardTitle className="text-base md:text-lg">
             {format(day.date, "d MMMM yyyy", { locale: uk })}
           </CardTitle>
@@ -176,7 +176,7 @@ export function DayDetailModal({ day, onClose, onExcludeTransaction }: DayDetail
             <X className="w-5 h-5" />
           </button>
         </CardHeader>
-        <CardContent className="space-y-4 pb-6 md:pb-4">
+        <CardContent className="space-y-4 pb-6 md:pb-4 overflow-y-auto flex-1">
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Статус</span>
             {getStatusBadge()}

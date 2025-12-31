@@ -311,74 +311,73 @@ export function CategoriesPage() {
     <div className="space-y-4">
       {/* Header with date range picker and refresh button */}
       <Card>
-        <CardHeader className="pb-0">
-          <CardTitle className="text-base flex items-center justify-between">
-            <div>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex flex-col gap-2">
+            <div className="flex items-center justify-between">
               <span>Категорії витрат</span>
-              <div className="flex items-center gap-2 mt-1 flex-wrap">
-                <div className="flex gap-1">
-                  {[
-                    { label: "1 міс", months: 0 },  // Current month
-                    { label: "3 міс", months: 2 },  // Current + 2 previous months
-                    { label: "6 міс", months: 5 },  // Current + 5 previous months
-                    { label: "1 рік", months: 11 }, // Current + 11 previous months
-                  ].map((preset) => {
-                    const now = new Date();
-                    const presetFrom = startOfMonth(subMonths(now, preset.months));
-                    const isActive = 
-                      Math.abs(dateRange.from.getTime() - presetFrom.getTime()) < 86400000 &&
-                      Math.abs(dateRange.to.getTime() - now.getTime()) < 86400000;
-                    
-                    return (
-                      <Button
-                        key={preset.months}
-                        variant={isActive ? "default" : "ghost"}
-                        size="sm"
-                        className="h-7 px-2 text-xs"
-                        onClick={() => {
-                          setDateRange({ from: presetFrom, to: now });
-                        }}
-                      >
-                        {preset.label}
-                      </Button>
-                    );
-                  })}
-                </div>
-                <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-7 text-xs font-normal">
-                      <CalendarIcon className="w-3 h-3 mr-1" />
-                      {format(dateRange.from, "d MMM yy", { locale: uk })} - {format(dateRange.to, "d MMM yy", { locale: uk })}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="range"
-                      selected={{ from: dateRange.from, to: dateRange.to }}
-                      onSelect={(range) => {
-                        if (range?.from && range?.to) {
-                          setDateRange({ from: range.from, to: range.to });
-                          setCalendarOpen(false);
-                        } else if (range?.from) {
-                          setDateRange(prev => ({ ...prev, from: range.from! }));
-                        }
-                      }}
-                      numberOfMonths={2}
-                      locale={uk}
-                    />
-                  </PopoverContent>
-                </Popover>
-              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8"
+                onClick={loadFromStorage}
+                disabled={loadingHistory}
+              >
+                <RefreshCw className={`w-4 h-4 ${loadingHistory ? "animate-spin" : ""}`} />
+                <span className="hidden sm:inline ml-2">{loadingHistory ? "Завантаження..." : "Оновити"}</span>
+              </Button>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={loadFromStorage}
-              disabled={loadingHistory}
-            >
-              <RefreshCw className={`w-4 h-4 mr-2 ${loadingHistory ? "animate-spin" : ""}`} />
-              {loadingHistory ? "Завантаження..." : "Оновити"}
-            </Button>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {[
+                { label: "1 міс", months: 0 },
+                { label: "3 міс", months: 2 },
+                { label: "6 міс", months: 5 },
+                { label: "1 рік", months: 11 },
+              ].map((preset) => {
+                const now = new Date();
+                const presetFrom = startOfMonth(subMonths(now, preset.months));
+                const isActive =
+                  Math.abs(dateRange.from.getTime() - presetFrom.getTime()) < 86400000 &&
+                  Math.abs(dateRange.to.getTime() - now.getTime()) < 86400000;
+
+                return (
+                  <Button
+                    key={preset.months}
+                    variant={isActive ? "default" : "ghost"}
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => {
+                      setDateRange({ from: presetFrom, to: now });
+                    }}
+                  >
+                    {preset.label}
+                  </Button>
+                );
+              })}
+              <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm" className="h-7 text-xs font-normal">
+                    <CalendarIcon className="w-3 h-3 mr-1" />
+                    {format(dateRange.from, "d.MM", { locale: uk })} - {format(dateRange.to, "d.MM.yy", { locale: uk })}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="range"
+                    selected={{ from: dateRange.from, to: dateRange.to }}
+                    onSelect={(range) => {
+                      if (range?.from && range?.to) {
+                        setDateRange({ from: range.from, to: range.to });
+                        setCalendarOpen(false);
+                      } else if (range?.from) {
+                        setDateRange(prev => ({ ...prev, from: range.from! }));
+                      }
+                    }}
+                    numberOfMonths={2}
+                    locale={uk}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
           </CardTitle>
         </CardHeader>
       </Card>

@@ -179,57 +179,55 @@ export function SpendingChart({ onRefresh, isLoading }: SpendingChartProps) {
 
   return (
     <div className="space-y-4">
-      {/* Period Selector - inline with summary cards */}
-      <div className="flex items-center gap-2">
+      {/* Period Selector */}
+      <div className="flex flex-wrap items-center gap-1.5">
         {/* Pre-defined periods */}
-        <div className="flex items-center gap-1">
-          {[
-            { label: "1 міс", months: 0 },  // Current month
-            { label: "3 міс", months: 2 },  // Current + 2 previous months
-            { label: "6 міс", months: 5 },  // Current + 5 previous months
-            { label: "1 рік", months: 11 }, // Current + 11 previous months
-          ].map((preset) => {
-            const now = new Date();
-            const presetFrom = startOfMonth(subMonths(now, preset.months));
-            const isActive = dateRange?.from && dateRange?.to &&
-              Math.abs(dateRange.from.getTime() - presetFrom.getTime()) < 86400000 &&
-              Math.abs(dateRange.to.getTime() - now.getTime()) < 86400000;
-            
-            return (
-              <Button
-                key={preset.months}
-                variant={isActive ? "default" : "outline"}
-                size="sm"
-                className="h-8 px-3"
-                onClick={() => {
-                  setDateRange({ from: presetFrom, to: now });
-                }}
-              >
-                {preset.label}
-              </Button>
-            );
-          })}
-        </div>
-        
+        {[
+          { label: "1 міс", months: 0 },
+          { label: "3 міс", months: 2 },
+          { label: "6 міс", months: 5 },
+          { label: "1 рік", months: 11 },
+        ].map((preset) => {
+          const now = new Date();
+          const presetFrom = startOfMonth(subMonths(now, preset.months));
+          const isActive = dateRange?.from && dateRange?.to &&
+            Math.abs(dateRange.from.getTime() - presetFrom.getTime()) < 86400000 &&
+            Math.abs(dateRange.to.getTime() - now.getTime()) < 86400000;
+
+          return (
+            <Button
+              key={preset.months}
+              variant={isActive ? "default" : "outline"}
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={() => {
+                setDateRange({ from: presetFrom, to: now });
+              }}
+            >
+              {preset.label}
+            </Button>
+          );
+        })}
+
         {/* Custom date picker */}
         <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
           <PopoverTrigger asChild>
             <Button
               variant="outline"
               size="sm"
-              className="h-8 px-3 justify-start text-left font-normal"
+              className="h-7 px-2 text-xs font-normal"
             >
-              <Calendar className="w-4 h-4 mr-2" />
+              <Calendar className="w-3 h-3 mr-1" />
               {dateRange?.from ? (
                 dateRange.to ? (
                   <>
-                    {format(dateRange.from, "dd.MM.yy", { locale: uk })} – {format(dateRange.to, "dd.MM.yy", { locale: uk })}
+                    {format(dateRange.from, "d.MM", { locale: uk })} – {format(dateRange.to, "d.MM.yy", { locale: uk })}
                   </>
                 ) : (
-                  format(dateRange.from, "dd.MM.yy", { locale: uk })
+                  format(dateRange.from, "d.MM.yy", { locale: uk })
                 )
               ) : (
-                <span>Оберіть період</span>
+                <span>Період</span>
               )}
             </Button>
           </PopoverTrigger>
@@ -249,16 +247,16 @@ export function SpendingChart({ onRefresh, isLoading }: SpendingChartProps) {
             />
           </PopoverContent>
         </Popover>
-        
+
         {/* Refresh button */}
         <Button
           variant="outline"
           size="sm"
-          className="h-8"
+          className="h-7 w-7 p-0"
           onClick={loadFromStorage}
           disabled={loadingHistory}
         >
-          <RefreshCw className={`w-4 h-4 ${loadingHistory ? "animate-spin" : ""}`} />
+          <RefreshCw className={`w-3.5 h-3.5 ${loadingHistory ? "animate-spin" : ""}`} />
         </Button>
       </div>
 
