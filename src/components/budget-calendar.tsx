@@ -73,12 +73,12 @@ export function BudgetCalendar({ dailyLimits, onDayClick }: BudgetCalendarProps)
     return (settings.accountBalance || 0) / 30;
   }, [isCurrentMonth, dailyLimits, settings.accountBalance]);
 
-  // Get status color for the bar fill
+  // Get status color for the bar fill - softer, less aggressive palette
   const getStatusColor = (percentage: number): string => {
-    if (percentage >= 100) return "bg-red-400";
-    if (percentage >= 80) return "bg-orange-400";
-    if (percentage >= 50) return "bg-yellow-400";
-    return "bg-emerald-400";
+    if (percentage >= 100) return "bg-rose-300";      // soft rose instead of aggressive red
+    if (percentage >= 80) return "bg-amber-300";      // soft amber
+    if (percentage >= 50) return "bg-yellow-200";     // very soft yellow
+    return "bg-teal-200";                              // soft teal instead of bright green
   };
 
   // Get day info - either from current month dailyLimits or historical data
@@ -260,19 +260,19 @@ export function BudgetCalendar({ dailyLimits, onDayClick }: BudgetCalendarProps)
       {/* Legend */}
       <div className="flex justify-center gap-3 md:gap-6 mt-3 md:mt-4 overflow-x-auto px-2">
         <div className="flex items-center gap-1 flex-shrink-0">
-          <div className="w-2.5 h-2.5 md:w-3 md:h-3 rounded bg-emerald-400" />
+          <div className="w-2.5 h-2.5 md:w-3 md:h-3 rounded bg-teal-200" />
           <span className="text-[10px] md:text-xs text-muted-foreground whitespace-nowrap">&lt;50%</span>
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
-          <div className="w-2.5 h-2.5 md:w-3 md:h-3 rounded bg-yellow-400" />
+          <div className="w-2.5 h-2.5 md:w-3 md:h-3 rounded bg-yellow-200" />
           <span className="text-[10px] md:text-xs text-muted-foreground whitespace-nowrap">50-80%</span>
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
-          <div className="w-2.5 h-2.5 md:w-3 md:h-3 rounded bg-orange-400" />
+          <div className="w-2.5 h-2.5 md:w-3 md:h-3 rounded bg-amber-300" />
           <span className="text-[10px] md:text-xs text-muted-foreground whitespace-nowrap">80-100%</span>
         </div>
         <div className="flex items-center gap-1 flex-shrink-0">
-          <div className="w-2.5 h-2.5 md:w-3 md:h-3 rounded bg-red-400" />
+          <div className="w-2.5 h-2.5 md:w-3 md:h-3 rounded bg-rose-300" />
           <span className="text-[10px] md:text-xs text-muted-foreground whitespace-nowrap">&gt;100%</span>
         </div>
       </div>

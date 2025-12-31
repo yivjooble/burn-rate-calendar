@@ -10,7 +10,11 @@ interface BudgetSummaryProps {
 }
 
 export function BudgetSummary({ budget }: BudgetSummaryProps) {
-  const percentSpent = (budget.totalSpent / budget.totalBudget) * 100;
+  // Progress based on days passed in month
+  const today = new Date();
+  const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+  const daysPassed = today.getDate();
+  const percentMonthPassed = (daysPassed / daysInMonth) * 100;
   // Use current card balance for daily limit (what you can actually spend per day)
   // Falls back to totalRemaining if currentBalance is not available
   const availableForDaily = budget.currentBalance ?? budget.totalRemaining;
@@ -71,25 +75,23 @@ export function BudgetSummary({ budget }: BudgetSummaryProps) {
       <Card className="py-0">
         <CardContent className="p-3">
           <div className="flex justify-between text-sm mb-2">
-            <span className="text-muted-foreground">Прогрес витрат</span>
-            <span className={`font-bold ${percentSpent > 100 ? 'text-red-500' : percentSpent > 80 ? 'text-orange-500' : 'text-emerald-600'}`}>
-              {percentSpent.toFixed(0)}%
+            <span className="text-muted-foreground">Прогрес місяця</span>
+            <span className="font-bold text-slate-600">
+              {daysPassed} / {daysInMonth} днів
             </span>
           </div>
           <div className="relative h-3 bg-muted rounded-full overflow-hidden">
             <div 
-              className={`absolute left-0 top-0 h-full transition-all rounded-full ${
-                percentSpent > 100 ? 'bg-red-500' : percentSpent > 80 ? 'bg-orange-400' : percentSpent > 50 ? 'bg-yellow-400' : 'bg-emerald-500'
-              }`}
-              style={{ width: `${Math.min(percentSpent, 100)}%` }}
+              className="absolute left-0 top-0 h-full transition-all rounded-full bg-slate-400"
+              style={{ width: `${percentMonthPassed}%` }}
             />
           </div>
           <div className="flex justify-between text-xs text-muted-foreground mt-2">
-            <span>0 ₴</span>
-            <span className={`font-semibold ${budget.totalRemaining >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-              Залишок: {(budget.totalRemaining / 100).toLocaleString("uk-UA")} ₴
+            <span>1 день</span>
+            <span className="font-medium">
+              Залишилось {budget.daysRemaining} {budget.daysRemaining === 1 ? 'день' : budget.daysRemaining < 5 ? 'дні' : 'днів'}
             </span>
-            <span>{(budget.totalBudget / 100).toLocaleString("uk-UA")} ₴</span>
+            <span>{daysInMonth} днів</span>
           </div>
         </CardContent>
       </Card>
