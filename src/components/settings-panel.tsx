@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Settings, Eye, EyeOff, Save, RefreshCw, CreditCard, Download, CalendarIcon, Trash2, Check } from "lucide-react";
+import { Settings, Eye, EyeOff, Save, RefreshCw, CreditCard, Download, CalendarIcon, Trash2, Check, Lock, AlertCircle, CheckCircle2 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format, subMonths } from "date-fns";
@@ -47,6 +47,16 @@ export function SettingsPanel({ onSave }: SettingsPanelProps) {
   );
   const [loadingAccounts, setLoadingAccounts] = useState(false);
   const [accountsError, setAccountsError] = useState<string | null>(null);
+
+  // Password change state
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [passwordChanging, setPasswordChanging] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
 
   // Check if token exists on server
   useEffect(() => {
@@ -224,6 +234,56 @@ export function SettingsPanel({ onSave }: SettingsPanelProps) {
       accountCurrency: selectedAccount?.currencyCode || 980,
     });
     onSave?.();
+  };
+
+  const handlePasswordChange = async () => {
+    setPasswordError(null);
+    setPasswordSuccess(false);
+
+    // Client-side validation
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setPasswordError("Заповніть всі поля");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError("Паролі не співпадають");
+      return;
+    }
+
+    if (newPassword.length < 12) {
+      setPasswordError("Пароль має бути мінімум 12 символів");
+      return;
+    }
+
+    setPasswordChanging(true);
+
+    try {
+      const response = await fetch("/api/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setPasswordError(data.error || "Помилка зміни пароля");
+        return;
+      }
+
+      setPasswordSuccess(true);
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+
+      // Hide success message after 3 seconds
+      setTimeout(() => setPasswordSuccess(false), 3000);
+    } catch {
+      setPasswordError("Помилка з'єднання");
+    } finally {
+      setPasswordChanging(false);
+    }
   };
 
   return (
@@ -548,6 +608,95 @@ export function SettingsPanel({ onSave }: SettingsPanelProps) {
           
           <p className="text-xs text-muted-foreground">
             Завантаження історичних даних може зайняти декілька хвилин через обмеження API Monobank (1 запит на хвилину).
+          </p>
+        </div>
+
+        {/* Password Change Section */}
+        <div className="pt-4 border-t space-y-3">
+          <Label className="text-base font-semibold flex items-center gap-2">
+            <Lock className="w-4 h-4" />
+            Змінити пароль
+          </Label>
+
+          {passwordError && (
+            <div className="flex items-center gap-2 p-2 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <span>{passwordError}</span>
+            </div>
+          )}
+
+          {passwordSuccess && (
+            <div className="flex items-center gap-2 p-2 bg-green-50 border border-green-200 rounded-lg text-green-700 text-sm">
+              <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+              <span>Пароль успішно змінено!</span>
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <Label htmlFor="currentPassword" className="text-sm">Поточний пароль</Label>
+            <div className="relative">
+              <Input
+                id="currentPassword"
+                type={showCurrentPassword ? "text" : "password"}
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                placeholder="••••••••"
+                className="pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="newPassword" className="text-sm">Новий пароль</Label>
+            <div className="relative">
+              <Input
+                id="newPassword"
+                type={showNewPassword ? "text" : "password"}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Мінімум 12 символів"
+                className="pr-10"
+              />
+              <button
+                type="button"
+                onClick={() => setShowNewPassword(!showNewPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="confirmPassword" className="text-sm">Підтвердіть новий пароль</Label>
+            <Input
+              id="confirmPassword"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Повторіть новий пароль"
+            />
+          </div>
+
+          <Button
+            onClick={handlePasswordChange}
+            variant="outline"
+            className="w-full"
+            disabled={passwordChanging || !currentPassword || !newPassword || !confirmPassword}
+          >
+            <Lock className="w-4 h-4 mr-2" />
+            {passwordChanging ? "Зміна пароля..." : "Змінити пароль"}
+          </Button>
+
+          <p className="text-xs text-muted-foreground">
+            Пароль має містити мінімум 12 символів, велику та малу літеру, цифру та спецсимвол.
           </p>
         </div>
       </CardContent>

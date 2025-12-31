@@ -5,6 +5,14 @@ const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KE
 const FROM_EMAIL = process.env.FROM_EMAIL || "Burn Rate Calendar <noreply@burnrate.app>";
 const APP_URL = process.env.NEXTAUTH_URL || "http://localhost:3000";
 
+// Log email configuration on startup (without exposing full API key)
+console.log("[EMAIL] Configuration:", {
+  hasApiKey: !!process.env.RESEND_API_KEY,
+  apiKeyPrefix: process.env.RESEND_API_KEY?.substring(0, 10) + "...",
+  fromEmail: FROM_EMAIL,
+  appUrl: APP_URL,
+});
+
 /**
  * Send email verification email for registration
  */
@@ -12,15 +20,18 @@ export async function sendVerificationEmail(
   email: string,
   verificationToken: string
 ): Promise<{ success: boolean; error?: string }> {
+  console.log("[EMAIL] Sending verification email to:", email);
+
   if (!resend) {
-    console.error("Resend API key not configured");
+    console.error("[EMAIL] Resend API key not configured - RESEND_API_KEY is missing");
     return { success: false, error: "Email service not configured" };
   }
 
   const verifyUrl = `${APP_URL}/verify-email?token=${verificationToken}`;
+  console.log("[EMAIL] Verification URL:", verifyUrl);
 
   try {
-    const { error } = await resend.emails.send({
+    const { data, error } = await resend.emails.send({
       from: FROM_EMAIL,
       to: email,
       subject: "Підтвердіть email - Burn Rate Calendar",
@@ -70,13 +81,19 @@ export async function sendVerificationEmail(
     });
 
     if (error) {
-      console.error("Resend error:", error);
+      console.error("[EMAIL] Resend API error:", {
+        name: error.name,
+        message: error.message,
+        to: email,
+        from: FROM_EMAIL,
+      });
       return { success: false, error: error.message };
     }
 
+    console.log("[EMAIL] Verification email sent successfully:", { id: data?.id, to: email });
     return { success: true };
   } catch (err) {
-    console.error("Email send error:", err);
+    console.error("[EMAIL] Exception sending verification email:", err);
     return { success: false, error: "Failed to send email" };
   }
 }
@@ -88,15 +105,18 @@ export async function sendPasswordResetEmail(
   email: string,
   resetToken: string
 ): Promise<{ success: boolean; error?: string }> {
+  console.log("[EMAIL] Sending password reset email to:", email);
+
   if (!resend) {
-    console.error("Resend API key not configured");
+    console.error("[EMAIL] Resend API key not configured - RESEND_API_KEY is missing");
     return { success: false, error: "Email service not configured" };
   }
 
   const resetUrl = `${APP_URL}/reset-password?token=${resetToken}`;
+  console.log("[EMAIL] Reset URL:", resetUrl);
 
   try {
-    const { error } = await resend.emails.send({
+    const { data, error } = await resend.emails.send({
       from: FROM_EMAIL,
       to: email,
       subject: "Скидання пароля - Burn Rate Calendar",
@@ -146,13 +166,19 @@ export async function sendPasswordResetEmail(
     });
 
     if (error) {
-      console.error("Resend error:", error);
+      console.error("[EMAIL] Resend API error:", {
+        name: error.name,
+        message: error.message,
+        to: email,
+        from: FROM_EMAIL,
+      });
       return { success: false, error: error.message };
     }
 
+    console.log("[EMAIL] Password reset email sent successfully:", { id: data?.id, to: email });
     return { success: true };
   } catch (err) {
-    console.error("Email send error:", err);
+    console.error("[EMAIL] Exception sending password reset email:", err);
     return { success: false, error: "Failed to send email" };
   }
 }

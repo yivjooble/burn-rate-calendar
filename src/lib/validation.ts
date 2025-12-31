@@ -121,7 +121,7 @@ export type RegisterInput = z.infer<typeof registerSchema>;
 
 // Password strength checker for UI
 export function getPasswordStrength(password: string): {
-  score: number; // 0-4
+  score: number; // 0-5 (5 = all requirements met)
   label: string;
   checks: {
     length: boolean;
@@ -130,6 +130,7 @@ export function getPasswordStrength(password: string): {
     number: boolean;
     special: boolean;
   };
+  allMet: boolean; // true if all requirements are satisfied
 } {
   const checks = {
     length: password.length >= 12,
@@ -140,15 +141,21 @@ export function getPasswordStrength(password: string): {
   };
 
   const score = Object.values(checks).filter(Boolean).length;
+  const allMet = score === 5;
 
-  const labels = ["Дуже слабкий", "Слабкий", "Середній", "Сильний", "Дуже сильний"];
+  // 6 labels for scores 0-5
+  const labels = ["Дуже слабкий", "Слабкий", "Слабкий", "Середній", "Сильний", "Відмінний"];
 
   return {
-    score: Math.min(score, 4),
-    label: labels[Math.min(score, 4)],
+    score,
+    label: labels[score],
     checks,
+    allMet,
   };
 }
+
+// Export the strong password schema for use in change-password
+export const passwordSchema = strongPasswordSchema;
 
 // =============================================================================
 // HELPER FUNCTIONS

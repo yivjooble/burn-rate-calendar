@@ -12,19 +12,20 @@ import { getPasswordStrength } from "@/lib/validation";
 function PasswordStrengthIndicator({ password }: { password: string }) {
   const strength = getPasswordStrength(password);
 
-  const getColorClass = (score: number) => {
+  const getColorClass = (score: number, allMet: boolean) => {
+    if (allMet) return "bg-emerald-500";
     if (score === 0) return "bg-gray-200";
-    if (score === 1) return "bg-red-500";
-    if (score === 2) return "bg-orange-500";
-    if (score === 3) return "bg-yellow-500";
-    if (score === 4) return "bg-emerald-500";
-    return "bg-emerald-600";
+    if (score <= 2) return "bg-red-500";
+    if (score === 3) return "bg-orange-500";
+    if (score === 4) return "bg-yellow-500";
+    return "bg-emerald-500";
   };
 
-  const getLabelColor = (score: number) => {
+  const getLabelColor = (score: number, allMet: boolean) => {
+    if (allMet) return "text-emerald-600";
     if (score === 0) return "text-gray-400";
     if (score <= 2) return "text-red-500";
-    if (score === 3) return "text-yellow-600";
+    if (score <= 4) return "text-yellow-600";
     return "text-emerald-600";
   };
 
@@ -38,24 +39,31 @@ function PasswordStrengthIndicator({ password }: { password: string }) {
           <div
             key={i}
             className={`h-1 flex-1 rounded-full transition-colors ${
-              i <= strength.score ? getColorClass(strength.score) : "bg-gray-200"
+              i <= strength.score ? getColorClass(strength.score, strength.allMet) : "bg-gray-200"
             }`}
           />
         ))}
       </div>
 
       {/* Strength label */}
-      <p className={`text-xs font-medium ${getLabelColor(strength.score)}`}>
-        {strength.label}
-      </p>
+      <div className="flex items-center justify-between">
+        <p className={`text-xs font-medium ${getLabelColor(strength.score, strength.allMet)}`}>
+          {strength.label}
+        </p>
+        {!strength.allMet && strength.score > 0 && (
+          <p className="text-xs text-muted-foreground">
+            Потрібно виконати всі вимоги
+          </p>
+        )}
+      </div>
 
       {/* Requirements checklist */}
       <div className="grid grid-cols-2 gap-1 text-xs">
         <RequirementItem met={strength.checks.length} label="12+ символів" />
-        <RequirementItem met={strength.checks.uppercase} label="Велика літера" />
-        <RequirementItem met={strength.checks.lowercase} label="Мала літера" />
-        <RequirementItem met={strength.checks.number} label="Цифра" />
-        <RequirementItem met={strength.checks.special} label="Спецсимвол" />
+        <RequirementItem met={strength.checks.uppercase} label="Велика літера (A-Z)" />
+        <RequirementItem met={strength.checks.lowercase} label="Мала літера (a-z)" />
+        <RequirementItem met={strength.checks.number} label="Цифра (0-9)" />
+        <RequirementItem met={strength.checks.special} label="Спецсимвол (!@#$...)" />
       </div>
     </div>
   );
@@ -88,10 +96,18 @@ export default function RegisterPage() {
       return;
     }
 
-    // Validate password strength
+    // Validate password strength - all 5 requirements must be met
     const strength = getPasswordStrength(password);
-    if (strength.score < 5) {
-      setError("Пароль не відповідає вимогам безпеки");
+    if (!strength.allMet) {
+      // Find which requirements are not met
+      const missing = [];
+      if (!strength.checks.length) missing.push("мінімум 12 символів");
+      if (!strength.checks.uppercase) missing.push("велика літера (A-Z)");
+      if (!strength.checks.lowercase) missing.push("мала літера (a-z)");
+      if (!strength.checks.number) missing.push("цифра (0-9)");
+      if (!strength.checks.special) missing.push("спецсимвол (!@#$...)");
+
+      setError(`Пароль не відповідає вимогам: потрібно ${missing.join(", ")}`);
       return;
     }
 
