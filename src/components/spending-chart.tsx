@@ -289,7 +289,7 @@ export function SpendingChart({ onRefresh, isLoading }: SpendingChartProps) {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-3 gap-2">
-        <Card 
+        <Card
           className="py-0 cursor-pointer hover:bg-muted/50 transition-colors"
           onClick={() => setExpensesModalOpen(true)}
         >
@@ -299,12 +299,12 @@ export function SpendingChart({ onRefresh, isLoading }: SpendingChartProps) {
               <span className="text-xs">Всього витрат</span>
             </div>
             <div className="text-lg font-bold text-red-500">
-              {(totalExpenses / 100).toLocaleString("uk-UA")} ₴
+              {(filteredExpenses / 100).toLocaleString("uk-UA")} ₴
             </div>
           </CardContent>
         </Card>
 
-        <Card 
+        <Card
           className="py-0 cursor-pointer hover:bg-muted/50 transition-colors"
           onClick={() => setIncomeModalOpen(true)}
         >
@@ -314,7 +314,7 @@ export function SpendingChart({ onRefresh, isLoading }: SpendingChartProps) {
               <span className="text-xs">Всього доходів</span>
             </div>
             <div className="text-lg font-bold text-emerald-500">
-              {(totalIncome / 100).toLocaleString("uk-UA")} ₴
+              {(filteredIncome / 100).toLocaleString("uk-UA")} ₴
             </div>
           </CardContent>
         </Card>
@@ -326,7 +326,7 @@ export function SpendingChart({ onRefresh, isLoading }: SpendingChartProps) {
               <span className="text-xs">Середні витрати/тиждень</span>
             </div>
             <div className="text-lg font-bold">
-              {(avgWeeklyExpenses / 100).toLocaleString("uk-UA")} ₴
+              {(filteredExpenses / 100).toLocaleString("uk-UA")} ₴
             </div>
           </CardContent>
         </Card>
