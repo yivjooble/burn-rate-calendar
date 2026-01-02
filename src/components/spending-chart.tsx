@@ -177,6 +177,25 @@ export function SpendingChart({ onRefresh, isLoading }: SpendingChartProps) {
   const totalIncome = weeksData.reduce((sum, d) => sum + d.income, 0);
   const avgWeeklyExpenses = weeksData.length > 0 ? totalExpenses / weeksData.length : 0;
 
+  // Filtered totals for modals (exact date range, not week-based)
+  const filteredExpenses = historicalTransactions
+    .filter(tx => {
+      if (!dateRange?.from || !dateRange?.to) return false;
+      const txDate = new Date(tx.time * 1000);
+      return txDate >= dateRange.from && txDate <= dateRange.to;
+    })
+    .filter(tx => isExpense(tx, historicalTransactions) && !excludedTransactionIds.includes(tx.id))
+    .reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
+
+  const filteredIncome = historicalTransactions
+    .filter(tx => {
+      if (!dateRange?.from || !dateRange?.to) return false;
+      const txDate = new Date(tx.time * 1000);
+      return txDate >= dateRange.from && txDate <= dateRange.to;
+    })
+    .filter(tx => isIncome(tx, historicalTransactions))
+    .reduce((sum, tx) => sum + tx.amount, 0);
+
   return (
     <div className="space-y-4">
       {/* Period Selector */}
@@ -550,7 +569,7 @@ export function SpendingChart({ onRefresh, isLoading }: SpendingChartProps) {
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Всього надходжень:</span>
               <span className="text-lg font-bold text-emerald-500">
-                {(totalIncome / 100).toLocaleString("uk-UA")} ₴
+                {(filteredIncome / 100).toLocaleString("uk-UA")} ₴
               </span>
             </div>
           </div>
@@ -666,7 +685,7 @@ export function SpendingChart({ onRefresh, isLoading }: SpendingChartProps) {
             <div className="flex justify-between items-center">
               <span className="text-sm text-muted-foreground">Всього витрат:</span>
               <span className="text-lg font-bold text-red-500">
-                {(totalExpenses / 100).toLocaleString("uk-UA")} ₴
+                {(filteredExpenses / 100).toLocaleString("uk-UA")} ₴
               </span>
             </div>
           </div>
