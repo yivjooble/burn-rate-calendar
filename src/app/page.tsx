@@ -111,6 +111,29 @@ export default function Home() {
     }
   }, [hasMonoToken, settings.accountId, setSettings]);
 
+  // Save daily budgets to database
+  const saveDailyBudgets = useCallback(async (budget: any) => {
+    if (!session?.user?.id) return;
+
+    try {
+      const budgetsToSave = budget.dailyLimits.map((dayBudget: DayBudget) => ({
+        date: dayBudget.date.toISOString(),
+        limit: dayBudget.limit,
+        spent: dayBudget.spent,
+        balance: dayBudget.remaining
+      }));
+
+      await fetch("/api/db/daily-budgets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ budgets: budgetsToSave }),
+        credentials: "include",
+      });
+    } catch (error) {
+      console.error("Failed to save daily budgets:", error);
+    }
+  }, [session?.user?.id]);
+
   // Load stored transactions and calculate budget
   const loadFromStorage = useCallback(async () => {
     try {
@@ -139,15 +162,19 @@ export default function Home() {
           ? Math.round(convertToUAH(settings.accountBalance, settings.accountCurrency, rates))
           : 0;
 
-        const budget = distributeBudget(
+        const budget = await distributeBudget(
           budgetAmount,
           new Date(),
           [],
           transactionsInUAH,
           excludedTransactionIds,
-          budgetAmount // currentBalance = card balance in UAH
+          budgetAmount, // currentBalance = card balance in UAH
+          session?.user?.id
         );
         setMonthBudget(budget);
+        
+        // Save daily budgets to preserve historical limits
+        await saveDailyBudgets(budget);
 
         const lastSync = await getLastSync();
         if (lastSync) {
@@ -256,12 +283,19 @@ export default function Home() {
     if (!isHydrated) return;
 
     // Always create empty budget structure so calendar is visible
-    if (!monthBudget) {
-      const budgetAmount = settings.accountBalance || 0;
-      const budget = distributeBudget(budgetAmount, new Date(), [], [], excludedTransactionIds, budgetAmount);
-      setMonthBudget(budget);
-    }
-  }, [isHydrated, settings.accountBalance, monthBudget, excludedTransactionIds, setMonthBudget]);
+    const createInitialBudget = async () => {
+      if (!monthBudget) {
+        const budgetAmount = settings.accountBalance || 0;
+        const budget = await distributeBudget(budgetAmount, new Date(), [], [], excludedTransactionIds, budgetAmount, session?.user?.id);
+        setMonthBudget(budget);
+        
+        // Save daily budgets to preserve historical limits
+        await saveDailyBudgets(budget);
+      }
+    };
+    
+    createInitialBudget();
+  }, [isHydrated, settings.accountBalance, monthBudget, excludedTransactionIds, setMonthBudget, saveDailyBudgets, session?.user?.id]);
 
   // Recalculate budget when excluded transactions or balance change
   const recalculateBudget = useCallback(async () => {
@@ -279,15 +313,19 @@ export default function Home() {
         ? Math.round(convertToUAH(settings.accountBalance, settings.accountCurrency, rates))
         : 0;
 
-      const budget = distributeBudget(
+      const budget = await distributeBudget(
         budgetAmount,
         new Date(),
         [],
         currentMonthTx,
         excludedTransactionIds,
-        budgetAmount // currentBalance = card balance in UAH
+        budgetAmount, // currentBalance = card balance in UAH
+        session?.user?.id
       );
       setMonthBudget(budget);
+      
+      // Save daily budgets to preserve historical limits
+      await saveDailyBudgets(budget);
     }
   }, [transactions, settings.accountBalance, settings.accountCurrency, currencyRates, excludedTransactionIds, setMonthBudget]);
 

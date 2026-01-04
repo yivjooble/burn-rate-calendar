@@ -10,6 +10,7 @@ import {
   addMonths,
   differenceInDays,
 } from "date-fns";
+import { getUserDailyBudgets } from "./db";
 
 interface SpendingPattern {
   weekdayAvg: number;
@@ -65,14 +66,15 @@ export function analyzeSpendingPattern(
   };
 }
 
-export function distributeBudget(
+export async function distributeBudget(
   totalBudget: number,
   currentDate: Date,
   pastTransactions: Transaction[],
   currentMonthTransactions: Transaction[],
   excludedTransactionIds: string[] = [],
-  currentBalance?: number
-): MonthBudget {
+  currentBalance?: number,
+  userId?: string
+): Promise<MonthBudget> {
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
   const allDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
@@ -107,6 +109,26 @@ export function distributeBudget(
 
   const baseDailyLimit = totalBudget / allDays.length;
 
+  // Get historical daily budgets if userId is provided
+  let historicalBudgets: Map<string, { limit: number; spent: number; balance: number }> = new Map();
+  if (userId) {
+    try {
+      const monthStart = startOfMonth(currentDate);
+      const monthEnd = endOfMonth(currentDate);
+      const savedBudgets = await getUserDailyBudgets(userId, monthStart, monthEnd);
+      savedBudgets.forEach(budget => {
+        const dateKey = format(budget.date, "yyyy-MM-dd");
+        historicalBudgets.set(dateKey, {
+          limit: budget.limit,
+          spent: budget.spent,
+          balance: budget.balance
+        });
+      });
+    } catch (error) {
+      console.warn("Failed to load historical budgets:", error);
+    }
+  }
+
   const dailyLimits: DayBudget[] = allDays.map((day) => {
     const dateKey = format(day, "yyyy-MM-dd");
     const dayTransactions = currentGrouped.get(dateKey) || [];
@@ -121,8 +143,13 @@ export function distributeBudget(
     dayNormalized.setHours(0, 0, 0, 0);
 
     if (dayNormalized < today) {
-      // For past days, use the base daily limit for comparison
-      limit = baseDailyLimit;
+      // For past days, use saved historical limit if available, otherwise use base daily limit
+      const historicalBudget = historicalBudgets.get(dateKey);
+      if (historicalBudget) {
+        limit = historicalBudget.limit;
+      } else {
+        limit = baseDailyLimit;
+      }
     } else {
       // For today and future days, use current balance (what's actually available)
       // This matches the "На день" calculation in budget-summary.tsx
