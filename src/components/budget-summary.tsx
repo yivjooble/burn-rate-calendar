@@ -1,7 +1,6 @@
 "use client";
 
 import { MonthBudget } from "@/types";
-import { Progress } from "@/components/ui/progress";
 import { Card, CardContent } from "@/components/ui/card";
 import { Wallet, TrendingDown, Calendar, Lightbulb } from "lucide-react";
 
@@ -10,11 +9,6 @@ interface BudgetSummaryProps {
 }
 
 export function BudgetSummary({ budget }: BudgetSummaryProps) {
-  // Progress based on days passed in month
-  const today = new Date();
-  const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-  const daysPassed = today.getDate();
-  const percentMonthPassed = (daysPassed / daysInMonth) * 100;
   // Use current card balance for daily limit (what you can actually spend per day)
   // Falls back to totalRemaining if currentBalance is not available
   const availableForDaily = budget.currentBalance ?? budget.totalRemaining;
@@ -71,30 +65,6 @@ export function BudgetSummary({ budget }: BudgetSummaryProps) {
           </CardContent>
         </Card>
       </div>
-
-      <Card className="py-0">
-        <CardContent className="p-3">
-          <div className="flex justify-between text-sm mb-2">
-            <span className="text-muted-foreground">Прогрес місяця</span>
-            <span className="font-bold text-slate-600">
-              {daysPassed} / {daysInMonth} днів
-            </span>
-          </div>
-          <div className="relative h-3 bg-muted rounded-full overflow-hidden">
-            <div 
-              className="absolute left-0 top-0 h-full transition-all rounded-full bg-slate-400"
-              style={{ width: `${percentMonthPassed}%` }}
-            />
-          </div>
-          <div className="flex justify-between text-xs text-muted-foreground mt-2">
-            <span>1 день</span>
-            <span className="font-medium">
-              Залишилось {budget.daysRemaining} {budget.daysRemaining === 1 ? 'день' : budget.daysRemaining < 5 ? 'дні' : 'днів'}
-            </span>
-            <span>{daysInMonth} днів</span>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }
