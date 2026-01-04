@@ -73,7 +73,8 @@ export async function distributeBudget(
   currentMonthTransactions: Transaction[],
   excludedTransactionIds: string[] = [],
   currentBalance?: number,
-  userId?: string
+  userId?: string,
+  useAI: boolean = true
 ): Promise<MonthBudget> {
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
@@ -108,6 +109,61 @@ export async function distributeBudget(
   const totalWeight = weights.reduce((sum, w) => sum + w.weight, 0);
 
   const baseDailyLimit = totalBudget / allDays.length;
+
+  // Try AI-powered budget distribution if enabled and userId is provided
+  let aiDailyLimits: DayBudget[] | null = null;
+  if (useAI && userId && currentBalance !== undefined) {
+    try {
+      console.log("[BUDGET] Attempting AI-powered budget distribution...");
+      
+      // Get transactions for AI analysis (last 30-90 days)
+      const analysisTransactions = pastTransactions.slice(-90); // Last 90 transactions
+      
+      const aiResponse = await fetch("/api/ai/budget-distribution", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          totalBudget,
+          currentBalance,
+          transactions: analysisTransactions,
+          startDate: monthStart.toISOString().split('T')[0],
+          endDate: monthEnd.toISOString().split('T')[0],
+          financialMonthStart: 1 // TODO: Get from settings
+        }),
+        credentials: "include",
+      });
+      
+      if (aiResponse.ok) {
+        const aiData = await aiResponse.json();
+        console.log(`[BUDGET] AI generated ${aiData.dailyBudgets.length} daily budgets`);
+        
+        // Convert AI budgets to DayBudget format
+        aiDailyLimits = aiData.dailyBudgets.map((aiBudget: any) => {
+          const date = new Date(aiBudget.date);
+          const dateKey = format(date, "yyyy-MM-dd");
+          const dayTransactions = currentGrouped.get(dateKey) || [];
+          const daySpent = dayTransactions
+            .filter((tx) => isExpense(tx, currentMonthTransactions) && !excludedTransactionIds.includes(tx.id))
+            .reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
+          
+          return {
+            date,
+            limit: aiBudget.limit,
+            spent: Math.round(daySpent),
+            remaining: aiBudget.limit - Math.round(daySpent),
+            transactions: dayTransactions,
+            status: daySpent >= aiBudget.limit ? "over" : daySpent >= aiBudget.limit * 0.8 ? "warning" : "under",
+            confidence: aiBudget.confidence,
+            reasoning: aiBudget.reasoning
+          };
+        });
+      } else {
+        console.warn("[BUDGET] AI budget distribution failed, falling back to traditional method");
+      }
+    } catch (error) {
+      console.warn("[BUDGET] AI budget distribution error, falling back to traditional method:", error);
+    }
+  }
 
   // Get historical daily budgets if userId is provided
   let historicalBudgets: Map<string, { limit: number; spent: number; balance: number }> = new Map();
@@ -162,15 +218,25 @@ export async function distributeBudget(
         console.log(`[BUDGET] No historical budget for ${dateKey}, using 0 to preserve historical data`);
       }
     } else {
-      // For today and future days, use current balance (what's actually available)
-      // This matches the "На день" calculation in budget-summary.tsx
-      const availableBudget = currentBalance !== undefined ? Math.max(0, currentBalance) : Math.max(0, remainingBudget);
-      
-      // Use simple equal distribution for future days to avoid uneven limits
-      // This is more predictable than weighted distribution based on spending patterns
-      limit = availableBudget / Math.max(futureDays.length, 1);
-      
-      console.log(`[BUDGET] Future day ${dateKey}: available=${availableBudget}, days=${futureDays.length}, limit=${limit}`);
+      // For today and future days, use AI predictions if available, otherwise fallback to traditional method
+      if (aiDailyLimits) {
+        // Use AI-generated limits
+        const aiBudget = aiDailyLimits.find(b => format(b.date, "yyyy-MM-dd") === dateKey);
+        if (aiBudget) {
+          limit = aiBudget.limit;
+          console.log(`[BUDGET] Using AI prediction for ${dateKey}: ${limit} (confidence: ${aiBudget.confidence || 'N/A'})`);
+        } else {
+          // Fallback to traditional method if AI didn't generate budget for this day
+          const availableBudget = currentBalance !== undefined ? Math.max(0, currentBalance) : Math.max(0, remainingBudget);
+          limit = availableBudget / Math.max(futureDays.length, 1);
+          console.log(`[BUDGET] AI fallback for ${dateKey}: available=${availableBudget}, days=${futureDays.length}, limit=${limit}`);
+        }
+      } else {
+        // Traditional method when AI is disabled or failed
+        const availableBudget = currentBalance !== undefined ? Math.max(0, currentBalance) : Math.max(0, remainingBudget);
+        limit = availableBudget / Math.max(futureDays.length, 1);
+        console.log(`[BUDGET] Traditional method for ${dateKey}: available=${availableBudget}, days=${futureDays.length}, limit=${limit}`);
+      }
     }
 
     const remaining = limit - daySpent;

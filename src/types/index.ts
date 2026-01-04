@@ -59,6 +59,8 @@ export interface DayBudget {
   remaining: number;
   transactions: Transaction[];
   status: "under" | "warning" | "over";
+  confidence?: number; // AI confidence level (0-1)
+  reasoning?: string; // AI explanation for the limit
 }
 
 export interface MonthBudget {
@@ -80,6 +82,7 @@ export interface UserSettings {
   selectedAccountIds?: string[]; // Deprecated - now single account
   selectedAccountCurrencies?: number[]; // Deprecated
   financialMonthStart?: number; // Day of month when financial month starts (1-31)
+  useAIBudget?: boolean; // Enable AI-powered budget distribution
 }
 
 export interface MonoClientInfo {

@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Settings, Eye, EyeOff, Save, RefreshCw, CreditCard, Download, CalendarIcon, Trash2, Check, Lock, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Settings, Eye, EyeOff, Save, RefreshCw, CreditCard, Download, CalendarIcon, Trash2, Check, Lock, AlertCircle, CheckCircle2, Brain } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format, subMonths } from "date-fns";
@@ -543,6 +543,36 @@ export function SettingsPanel({ onSave }: SettingsPanelProps) {
             <p className="text-xs text-muted-foreground">
               Фінансовий місяць визначає, як розраховується ваш бюджет. 
               Наприклад, якщо обрано "5 числа", то ваш фінансовий місяць триває з 5 числа поточного місяця по 4 числа наступного.
+            </p>
+          </div>
+        </div>
+
+        {/* AI Budget Settings */}
+        <div className="pt-4 border-t space-y-3">
+          <Label className="text-base font-semibold flex items-center gap-2">
+            <Brain className="w-4 h-4" />
+            AI-розподіл бюджету
+          </Label>
+          
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="useAIBudget"
+                checked={settings.useAIBudget ?? true}
+                onChange={(e) => setSettings({ useAIBudget: e.target.checked })}
+                className="rounded"
+              />
+              <Label htmlFor="useAIBudget" className="text-sm">
+                Використовувати AI для розподілу бюджету
+              </Label>
+            </div>
+          </div>
+          
+          <div className="p-3 bg-muted rounded-lg">
+            <p className="text-xs text-muted-foreground">
+              AI аналізує ваші історичні витрати та створює персоналізовані денні ліміти. 
+              Система враховує патерни витрат по днях тижня та категоріях для точніших прогнозів.
             </p>
           </div>
         </div>

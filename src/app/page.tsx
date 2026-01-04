@@ -184,7 +184,8 @@ export default function Home() {
           transactionsInUAH,
           excludedTransactionIds,
           budgetAmount, // currentBalance = card balance in UAH
-          session?.user?.id
+          session?.user?.id,
+          settings.useAIBudget ?? true // Use AI setting from user preferences
         );
         setMonthBudget(budget);
         
@@ -301,7 +302,7 @@ export default function Home() {
     const createInitialBudget = async () => {
       if (!monthBudget) {
         const budgetAmount = settings.accountBalance || 0;
-        const budget = await distributeBudget(budgetAmount, new Date(), transactions, [], excludedTransactionIds, budgetAmount, session?.user?.id);
+        const budget = await distributeBudget(budgetAmount, new Date(), transactions, [], excludedTransactionIds, budgetAmount, session?.user?.id, settings.useAIBudget ?? true);
         setMonthBudget(budget);
         
         // Save daily budgets to preserve historical limits
@@ -335,7 +336,8 @@ export default function Home() {
         currentMonthTx,
         excludedTransactionIds,
         budgetAmount, // currentBalance = card balance in UAH
-        session?.user?.id
+        session?.user?.id,
+        settings.useAIBudget ?? true // Use AI setting from user preferences
       );
       setMonthBudget(budget);
       
