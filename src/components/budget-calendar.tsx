@@ -59,20 +59,22 @@ interface BudgetCalendarProps {
 }
 
 export function BudgetCalendar({ dailyLimits, onDayClick }: BudgetCalendarProps) {
-  const [selectedMonth, setSelectedMonth] = useState(new Date());
+  const [selectedFinancialMonth, setSelectedFinancialMonth] = useState(new Date());
   const { transactions, excludedTransactionIds, settings } = useBudgetStore();
   
   const financialDayStart = settings.financialMonthStart || 1;
-  const isCurrentFinancialMonth = getFinancialMonthStart(new Date(), financialDayStart).getTime() === getFinancialMonthStart(selectedMonth, financialDayStart).getTime();
+  const currentFinancialMonthStart = getFinancialMonthStart(new Date(), financialDayStart);
+  const selectedFinancialMonthStart = getFinancialMonthStart(selectedFinancialMonth, financialDayStart);
+  const isCurrentFinancialMonth = currentFinancialMonthStart.getTime() === selectedFinancialMonthStart.getTime();
   
   // Use financial month calculations
-  const financialMonthStart = getFinancialMonthStart(selectedMonth, financialDayStart);
-  const financialMonthEnd = getFinancialMonthEnd(selectedMonth, financialDayStart);
-  const days = getFinancialMonthDays(selectedMonth, financialDayStart);
+  const financialMonthStart = selectedFinancialMonthStart;
+  const financialMonthEnd = getFinancialMonthEnd(selectedFinancialMonth, financialDayStart);
+  const days = getFinancialMonthDays(selectedFinancialMonth, financialDayStart);
   
   // For calendar grid, we still need calendar month start/end for proper grid layout
-  const calendarMonthStart = startOfMonth(selectedMonth);
-  const calendarMonthEnd = endOfMonth(selectedMonth);
+  const calendarMonthStart = startOfMonth(selectedFinancialMonth);
+  const calendarMonthEnd = endOfMonth(selectedFinancialMonth);
   const calendarDays = eachDayOfInterval({ start: calendarMonthStart, end: calendarMonthEnd });
 
   const firstDayOfWeek = calendarMonthStart.getDay();
@@ -81,26 +83,28 @@ export function BudgetCalendar({ dailyLimits, onDayClick }: BudgetCalendarProps)
   const weekDays = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд"];
   
   const goToPreviousMonth = useCallback(() => {
-    setSelectedMonth(prev => {
-      const newStart = getFinancialMonthStart(prev, financialDayStart);
-      newStart.setMonth(newStart.getMonth() - 1);
-      return newStart;
+    setSelectedFinancialMonth(prev => {
+      // Go back by one financial month
+      const newDate = new Date(prev);
+      newDate.setDate(newDate.getDate() - 30); // Approximate one month back
+      return newDate;
     });
-  }, [financialDayStart]);
-  
-  const goToNextMonth = useCallback(() => {
-    setSelectedMonth(prev => {
-      const newStart = getFinancialMonthStart(prev, financialDayStart);
-      newStart.setMonth(newStart.getMonth() + 1);
-      return newStart;
-    });
-  }, [financialDayStart]);
-  
-  const goToCurrentMonth = useCallback(() => {
-    setSelectedMonth(new Date());
   }, []);
   
-  const financialMonthLabel = getFinancialMonthLabel(selectedMonth, financialDayStart);
+  const goToNextMonth = useCallback(() => {
+    setSelectedFinancialMonth(prev => {
+      // Go forward by one financial month
+      const newDate = new Date(prev);
+      newDate.setDate(newDate.getDate() + 30); // Approximate one month forward
+      return newDate;
+    });
+  }, []);
+  
+  const goToCurrentMonth = useCallback(() => {
+    setSelectedFinancialMonth(new Date());
+  }, []);
+  
+  const financialMonthLabel = getFinancialMonthLabel(selectedFinancialMonth, financialDayStart);
 
   // Calculate daily data for historical months from transactions
   const historicalDailyData = useMemo(() => {
@@ -110,7 +114,7 @@ export function BudgetCalendar({ dailyLimits, onDayClick }: BudgetCalendarProps)
     
     transactions.forEach(tx => {
       const txDate = new Date(tx.time * 1000);
-      if (!isSameMonth(txDate, selectedMonth)) return;
+      if (!isSameMonth(txDate, selectedFinancialMonth)) return;
       if (!isExpense(tx, transactions)) return;
       if (excludedTransactionIds.includes(tx.id)) return;
       
@@ -122,7 +126,7 @@ export function BudgetCalendar({ dailyLimits, onDayClick }: BudgetCalendarProps)
     });
     
     return dataMap;
-  }, [transactions, selectedMonth, isCurrentFinancialMonth, excludedTransactionIds]);
+  }, [transactions, selectedFinancialMonth, isCurrentFinancialMonth, excludedTransactionIds]);
 
   // Calculate average daily limit for historical months
   const avgDailyLimit = useMemo(() => {
@@ -197,7 +201,7 @@ export function BudgetCalendar({ dailyLimits, onDayClick }: BudgetCalendarProps)
             {financialMonthLabel}
           </span>
           <span className="text-xs text-muted-foreground font-medium">
-            {format(selectedMonth, "yyyy")}
+            {format(selectedFinancialMonth, "yyyy")}
           </span>
         </button>
         
