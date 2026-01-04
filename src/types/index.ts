@@ -79,6 +79,7 @@ export interface UserSettings {
   accountCurrency?: number; // Currency code of selected card
   selectedAccountIds?: string[]; // Deprecated - now single account
   selectedAccountCurrencies?: number[]; // Deprecated
+  financialMonthStart?: number; // Day of month when financial month starts (1-31)
 }
 
 export interface MonoClientInfo {

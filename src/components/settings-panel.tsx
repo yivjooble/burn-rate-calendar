@@ -512,6 +512,41 @@ export function SettingsPanel({ onSave }: SettingsPanelProps) {
           Зберегти
         </Button>
 
+        {/* Financial Month Settings */}
+        <div className="pt-4 border-t space-y-3">
+          <Label className="text-base font-semibold flex items-center gap-2">
+            <CalendarIcon className="w-4 h-4" />
+            Фінансовий місяць
+          </Label>
+          
+          <div className="space-y-2">
+            <Label className="text-sm">Початок фінансового місяця</Label>
+            <div className="flex items-center gap-2">
+              <select
+                value={settings.financialMonthStart || 1}
+                onChange={(e) => setSettings({ financialMonthStart: Number(e.target.value) })}
+                className="flex-1 p-2 border rounded-md text-sm"
+              >
+                {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
+                  <option key={day} value={day}>
+                    {day} числа
+                  </option>
+                ))}
+              </select>
+              <span className="text-sm text-muted-foreground">
+                {settings.financialMonthStart || 1} числа кожного місяця
+              </span>
+            </div>
+          </div>
+          
+          <div className="p-3 bg-muted rounded-lg">
+            <p className="text-xs text-muted-foreground">
+              Фінансовий місяць визначає, як розраховується ваш бюджет. 
+              Наприклад, якщо обрано "5 числа", то ваш фінансовий місяць триває з 5 числа поточного місяця по 4 числа наступного.
+            </p>
+          </div>
+        </div>
+
         {/* Historical Data Loading Section */}
         <div className="pt-4 border-t space-y-3">
           <Label className="text-base font-semibold">Історичні дані</Label>

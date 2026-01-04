@@ -41,6 +41,8 @@ export function DayDetailModal({ day, onClose, onExcludeTransaction }: DayDetail
     includeTransaction,
     transactionCategories,
     setTransactionCategory,
+    transactionComments,
+    setTransactionComment,
     customCategories,
     addCustomCategory,
   } = useBudgetStore();
@@ -59,6 +61,10 @@ export function DayDetailModal({ day, onClose, onExcludeTransaction }: DayDetail
   const [newCategoryIcon, setNewCategoryIcon] = useState("📁");
   const [newCategoryColor, setNewCategoryColor] = useState("#6366f1");
   const [pendingTransactionId, setPendingTransactionId] = useState<string | null>(null);
+  
+  // State for editing comments
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editingCommentText, setEditingCommentText] = useState("");
 
   const handleCreateCategory = () => {
     if (!newCategoryName.trim()) return;
@@ -89,6 +95,23 @@ export function DayDetailModal({ day, onClose, onExcludeTransaction }: DayDetail
       setPendingTransactionId(transactionId);
     }
     setNewCategoryDialogOpen(true);
+  };
+  
+  // Comment editing functions
+  const startEditingComment = (transactionId: string, currentComment: string) => {
+    setEditingCommentId(transactionId);
+    setEditingCommentText(currentComment);
+  };
+  
+  const saveComment = (transactionId: string) => {
+    setTransactionComment(transactionId, editingCommentText);
+    setEditingCommentId(null);
+    setEditingCommentText("");
+  };
+  
+  const cancelEditingComment = () => {
+    setEditingCommentId(null);
+    setEditingCommentText("");
   };
   
   // Get all available categories (standard + custom)
@@ -243,6 +266,67 @@ export function DayDetailModal({ day, onClose, onExcludeTransaction }: DayDetail
                       >
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-medium truncate">{tx.description}</div>
+                          
+                          {/* Comment section */}
+                          <div className="mt-1">
+                            {editingCommentId === tx.id ? (
+                              <div className="flex items-center gap-1">
+                                <Input
+                                  value={editingCommentText}
+                                  onChange={(e) => setEditingCommentText(e.target.value)}
+                                  placeholder="Додати коментар..."
+                                  className="h-6 text-xs flex-1"
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      saveComment(tx.id);
+                                    } else if (e.key === 'Escape') {
+                                      cancelEditingComment();
+                                    }
+                                  }}
+                                  autoFocus
+                                />
+                                <Button
+                                  size="sm"
+                                  className="h-6 px-2 text-xs"
+                                  onClick={() => saveComment(tx.id)}
+                                >
+                                  ✓
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-6 px-2 text-xs"
+                                  onClick={cancelEditingComment}
+                                >
+                                  ✕
+                                </Button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1">
+                                {transactionComments[tx.id] ? (
+                                  <div className="flex items-center gap-1">
+                                    <span className="text-xs text-muted-foreground italic">
+                                      "{transactionComments[tx.id]}"
+                                    </span>
+                                    <button
+                                      onClick={() => startEditingComment(tx.id, transactionComments[tx.id])}
+                                      className="text-xs text-blue-500 hover:text-blue-700"
+                                    >
+                                      Ред.
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    onClick={() => startEditingComment(tx.id, "")}
+                                    className="text-xs text-muted-foreground hover:text-foreground"
+                                  >
+                                    + Додати коментар
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                          
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <button className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mt-0.5">
@@ -345,6 +429,66 @@ export function DayDetailModal({ day, onClose, onExcludeTransaction }: DayDetail
                     >
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium truncate">{tx.description}</div>
+                        
+                        {/* Comment section */}
+                        <div className="mt-1">
+                          {editingCommentId === tx.id ? (
+                            <div className="flex items-center gap-1">
+                              <Input
+                                value={editingCommentText}
+                                onChange={(e) => setEditingCommentText(e.target.value)}
+                                placeholder="Додати коментар..."
+                                className="h-6 text-xs flex-1"
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    saveComment(tx.id);
+                                  } else if (e.key === 'Escape') {
+                                    cancelEditingComment();
+                                  }
+                                }}
+                                autoFocus
+                              />
+                              <Button
+                                size="sm"
+                                className="h-6 px-2 text-xs"
+                                onClick={() => saveComment(tx.id)}
+                              >
+                                ✓
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 px-2 text-xs"
+                                onClick={cancelEditingComment}
+                              >
+                                ✕
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1">
+                              {transactionComments[tx.id] ? (
+                                <div className="flex items-center gap-1">
+                                  <span className="text-xs text-muted-foreground italic">
+                                    "{transactionComments[tx.id]}"
+                                  </span>
+                                  <button
+                                    onClick={() => startEditingComment(tx.id, transactionComments[tx.id])}
+                                    className="text-xs text-blue-500 hover:text-blue-700"
+                                  >
+                                    Ред.
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  onClick={() => startEditingComment(tx.id, "")}
+                                  className="text-xs text-muted-foreground hover:text-foreground"
+                                >
+                                  + Додати коментар
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
                       <div className="flex items-center gap-1 font-medium text-emerald-500">
                         <TrendingUp className="w-3 h-3" />

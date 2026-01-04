@@ -9,6 +9,50 @@ import { cn } from "@/lib/utils";
 import { useBudgetStore } from "@/store/budget-store";
 import { isExpense } from "@/lib/monobank";
 
+// Helper functions for financial month calculations
+function getFinancialMonthStart(date: Date, financialDayStart: number): Date {
+  const start = new Date(date);
+  if (start.getDate() >= financialDayStart) {
+    start.setDate(financialDayStart);
+  } else {
+    start.setDate(financialDayStart);
+    start.setMonth(start.getMonth() - 1);
+  }
+  start.setHours(0, 0, 0, 0);
+  return start;
+}
+
+function getFinancialMonthEnd(date: Date, financialDayStart: number): Date {
+  const start = getFinancialMonthStart(date, financialDayStart);
+  const end = new Date(start);
+  end.setMonth(end.getMonth() + 1);
+  end.setDate(financialDayStart - 1);
+  end.setHours(23, 59, 59, 999);
+  return end;
+}
+
+function getFinancialMonthDays(date: Date, financialDayStart: number): Date[] {
+  const start = getFinancialMonthStart(date, financialDayStart);
+  const end = getFinancialMonthEnd(date, financialDayStart);
+  return eachDayOfInterval({ start, end });
+}
+
+function getFinancialMonthLabel(date: Date, financialDayStart: number): string {
+  const start = getFinancialMonthStart(date, financialDayStart);
+  const end = getFinancialMonthEnd(date, financialDayStart);
+  
+  const startMonth = format(start, "MMMM", { locale: uk });
+  const endMonth = format(end, "MMMM", { locale: uk });
+  const startDay = start.getDate();
+  const endDay = end.getDate();
+  
+  if (startMonth === endMonth) {
+    return `${startDay}—${endDay} ${startMonth}`;
+  } else {
+    return `${startDay} ${startMonth} — ${endDay} ${endMonth}`;
+  }
+}
+
 interface BudgetCalendarProps {
   dailyLimits: DayBudget[];
   onDayClick?: (day: DayBudget) => void;
@@ -18,32 +62,49 @@ export function BudgetCalendar({ dailyLimits, onDayClick }: BudgetCalendarProps)
   const [selectedMonth, setSelectedMonth] = useState(new Date());
   const { transactions, excludedTransactionIds, settings } = useBudgetStore();
   
-  const isCurrentMonth = isSameMonth(selectedMonth, new Date());
+  const financialDayStart = settings.financialMonthStart || 1;
+  const isCurrentFinancialMonth = getFinancialMonthStart(new Date(), financialDayStart).getTime() === getFinancialMonthStart(selectedMonth, financialDayStart).getTime();
   
-  const monthStart = startOfMonth(selectedMonth);
-  const monthEnd = endOfMonth(selectedMonth);
-  const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
+  // Use financial month calculations
+  const financialMonthStart = getFinancialMonthStart(selectedMonth, financialDayStart);
+  const financialMonthEnd = getFinancialMonthEnd(selectedMonth, financialDayStart);
+  const days = getFinancialMonthDays(selectedMonth, financialDayStart);
+  
+  // For calendar grid, we still need calendar month start/end for proper grid layout
+  const calendarMonthStart = startOfMonth(selectedMonth);
+  const calendarMonthEnd = endOfMonth(selectedMonth);
+  const calendarDays = eachDayOfInterval({ start: calendarMonthStart, end: calendarMonthEnd });
 
-  const firstDayOfWeek = monthStart.getDay();
+  const firstDayOfWeek = calendarMonthStart.getDay();
   const paddingDays = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
 
   const weekDays = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд"];
   
   const goToPreviousMonth = useCallback(() => {
-    setSelectedMonth(prev => subMonths(prev, 1));
-  }, []);
+    setSelectedMonth(prev => {
+      const newStart = getFinancialMonthStart(prev, financialDayStart);
+      newStart.setMonth(newStart.getMonth() - 1);
+      return newStart;
+    });
+  }, [financialDayStart]);
   
   const goToNextMonth = useCallback(() => {
-    setSelectedMonth(prev => addMonths(prev, 1));
-  }, []);
+    setSelectedMonth(prev => {
+      const newStart = getFinancialMonthStart(prev, financialDayStart);
+      newStart.setMonth(newStart.getMonth() + 1);
+      return newStart;
+    });
+  }, [financialDayStart]);
   
   const goToCurrentMonth = useCallback(() => {
     setSelectedMonth(new Date());
   }, []);
+  
+  const financialMonthLabel = getFinancialMonthLabel(selectedMonth, financialDayStart);
 
   // Calculate daily data for historical months from transactions
   const historicalDailyData = useMemo(() => {
-    if (isCurrentMonth) return null;
+    if (isCurrentFinancialMonth) return null;
     
     const dataMap = new Map<string, { spent: number; transactions: Transaction[] }>();
     
@@ -61,17 +122,17 @@ export function BudgetCalendar({ dailyLimits, onDayClick }: BudgetCalendarProps)
     });
     
     return dataMap;
-  }, [transactions, selectedMonth, isCurrentMonth, excludedTransactionIds]);
+  }, [transactions, selectedMonth, isCurrentFinancialMonth, excludedTransactionIds]);
 
   // Calculate average daily limit for historical months
   const avgDailyLimit = useMemo(() => {
-    if (isCurrentMonth && dailyLimits.length > 0) {
+    if (isCurrentFinancialMonth && dailyLimits.length > 0) {
       const total = dailyLimits.reduce((sum, d) => sum + d.limit, 0);
       return total / dailyLimits.length;
     }
     // For historical months, use balance / 30 as rough estimate
     return (settings.accountBalance || 0) / 30;
-  }, [isCurrentMonth, dailyLimits, settings.accountBalance]);
+  }, [isCurrentFinancialMonth, dailyLimits, settings.accountBalance]);
 
   // Get status color for the bar fill - softer, less aggressive palette
   const getStatusColor = (percentage: number): string => {
@@ -83,7 +144,7 @@ export function BudgetCalendar({ dailyLimits, onDayClick }: BudgetCalendarProps)
 
   // Get day info - either from current month dailyLimits or historical data
   const getDayInfo = (day: Date): { spent: number; limit: number; percentage: number; transactions: Transaction[] } | null => {
-    if (isCurrentMonth) {
+    if (isCurrentFinancialMonth) {
       const dayData = dailyLimits.find((d) => isSameDay(d.date, day));
       if (!dayData) return null;
       const percentage = dayData.limit > 0 ? (dayData.spent / dayData.limit) * 100 : 0;
@@ -102,7 +163,7 @@ export function BudgetCalendar({ dailyLimits, onDayClick }: BudgetCalendarProps)
   const monthTotals = useMemo(() => {
     let totalSpent = 0;
     
-    if (isCurrentMonth) {
+    if (isCurrentFinancialMonth) {
       totalSpent = dailyLimits.reduce((sum, d) => sum + d.spent, 0);
     } else if (historicalDailyData) {
       historicalDailyData.forEach(data => {
@@ -111,7 +172,7 @@ export function BudgetCalendar({ dailyLimits, onDayClick }: BudgetCalendarProps)
     }
     
     return { spent: totalSpent };
-  }, [isCurrentMonth, dailyLimits, historicalDailyData]);
+  }, [isCurrentFinancialMonth, dailyLimits, historicalDailyData]);
 
   return (
     <div className="w-full space-y-4">
@@ -125,15 +186,15 @@ export function BudgetCalendar({ dailyLimits, onDayClick }: BudgetCalendarProps)
           <ChevronLeft className="w-5 h-5 text-muted-foreground" />
         </button>
         
-        <button 
+        <button
           onClick={goToCurrentMonth}
           className={cn(
             "flex flex-col items-center transition-all",
-            !isCurrentMonth && "hover:opacity-70 cursor-pointer"
+            !isCurrentFinancialMonth && "hover:opacity-70 cursor-pointer"
           )}
         >
           <span className="text-xl font-light tracking-tight capitalize">
-            {format(selectedMonth, "LLLL", { locale: uk })}
+            {financialMonthLabel}
           </span>
           <span className="text-xs text-muted-foreground font-medium">
             {format(selectedMonth, "yyyy")}
@@ -142,10 +203,10 @@ export function BudgetCalendar({ dailyLimits, onDayClick }: BudgetCalendarProps)
         
         <button
           onClick={goToNextMonth}
-          disabled={isCurrentMonth}
+          disabled={isCurrentFinancialMonth}
           className={cn(
             "p-2 -mr-2 rounded-full transition-all",
-            isCurrentMonth 
+            isCurrentFinancialMonth 
               ? "opacity-30 cursor-not-allowed" 
               : "hover:bg-muted/50 active:scale-95"
           )}
@@ -176,8 +237,10 @@ export function BudgetCalendar({ dailyLimits, onDayClick }: BudgetCalendarProps)
           <div key={`padding-${i}`} className="h-14 md:h-20" />
         ))}
 
-        {days.map((day) => {
-          const dayInfo = getDayInfo(day);
+        {calendarDays.map((day) => {
+          // Check if this day is within the financial month
+          const isInFinancialMonth = day >= financialMonthStart && day <= financialMonthEnd;
+          const dayInfo = isInFinancialMonth ? getDayInfo(day) : null;
           const isTodayDay = isToday(day);
           const isPast = day < new Date() && !isTodayDay;
           const hasSpending = dayInfo && dayInfo.spent > 0;
@@ -204,7 +267,9 @@ export function BudgetCalendar({ dailyLimits, onDayClick }: BudgetCalendarProps)
                 "relative h-14 md:h-20 rounded-md md:rounded-lg border overflow-hidden transition-all active:scale-95 md:hover:shadow-md md:hover:border-primary/50",
                 isTodayDay && "ring-2 ring-primary ring-offset-1",
                 dayInfo?.percentage && dayInfo.percentage >= 100 && "border-red-300",
-                isPast && !hasSpending ? "bg-gray-100" : "bg-card"
+                !isInFinancialMonth && "opacity-40 bg-gray-50 border-gray-200",
+                isPast && !hasSpending && isInFinancialMonth && "bg-gray-100",
+                !isPast && !hasSpending && isInFinancialMonth && "bg-card"
               )}
             >
               {/* Color fill from bottom */}

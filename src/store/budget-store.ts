@@ -17,6 +17,7 @@ interface BudgetState {
   excludedTransactionIds: string[];
   customCategories: CustomCategory[];
   transactionCategories: Record<string, string>; // transactionId -> categoryId
+  transactionComments: Record<string, string>; // transactionId -> comment
   cachedAccounts: MonoAccount[]; // Cached Monobank accounts to avoid rate limiting
   isLoading: boolean;
   isHistoricalLoading: boolean; // Historical data sync in progress
@@ -32,6 +33,7 @@ interface BudgetState {
   addCustomCategory: (category: CustomCategory) => void;
   removeCustomCategory: (categoryId: string) => void;
   setTransactionCategory: (transactionId: string, categoryId: string | null) => void;
+  setTransactionComment: (transactionId: string, comment: string) => void;
   setCachedAccounts: (accounts: MonoAccount[]) => void;
   setLoading: (loading: boolean) => void;
   setHistoricalLoading: (loading: boolean) => void;
@@ -57,6 +59,7 @@ export const useBudgetStore = create<BudgetState>()(
       excludedTransactionIds: [],
       customCategories: [],
       transactionCategories: {},
+      transactionComments: {},
       cachedAccounts: [],
       isLoading: false,
       isHistoricalLoading: false,
@@ -155,6 +158,25 @@ export const useBudgetStore = create<BudgetState>()(
         });
       },
 
+      setTransactionComment: (transactionId, comment) => {
+        set((state) => {
+          const newComments = { ...state.transactionComments };
+          if (!comment.trim()) {
+            delete newComments[transactionId];
+          } else {
+            newComments[transactionId] = comment.trim();
+          }
+          return { transactionComments: newComments };
+        });
+        // Sync to DB
+        fetch("/api/db/transaction-comments", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ transactionId, comment: comment.trim() || null }),
+          credentials: "include",
+        }).catch(console.error);
+      },
+
       setCachedAccounts: (accounts) => set({ cachedAccounts: accounts }),
 
       setLoading: (loading) => set({ isLoading: loading }),
@@ -172,6 +194,7 @@ export const useBudgetStore = create<BudgetState>()(
           excludedTransactionIds: [],
           customCategories: [],
           transactionCategories: {},
+          transactionComments: {},
           cachedAccounts: [],
           isLoading: false,
           isHistoricalLoading: false,
@@ -270,6 +293,7 @@ export const useBudgetStore = create<BudgetState>()(
         monthBudget: state.monthBudget,
         customCategories: state.customCategories,
         transactionCategories: state.transactionCategories,
+        transactionComments: state.transactionComments,
         cachedAccounts: state.cachedAccounts, // Cache accounts to avoid rate limiting
       }),
     }
