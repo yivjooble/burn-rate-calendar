@@ -111,24 +111,36 @@ export default function Home() {
     }
   }, [hasMonoToken, settings.accountId, setSettings]);
 
-  // Save daily budgets to database
+  // Save daily budgets to database (only future days to preserve historical data)
   const saveDailyBudgets = useCallback(async (budget: any) => {
     if (!session?.user?.id) return;
 
     try {
-      const budgetsToSave = budget.dailyLimits.map((dayBudget: DayBudget) => ({
-        date: dayBudget.date.toISOString(),
-        limit: dayBudget.limit,
-        spent: dayBudget.spent,
-        balance: dayBudget.remaining
-      }));
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      // Only save future and today's budgets to preserve historical data
+      const budgetsToSave = budget.dailyLimits
+        .filter((dayBudget: DayBudget) => {
+          const dayNormalized = new Date(dayBudget.date);
+          dayNormalized.setHours(0, 0, 0, 0);
+          return dayNormalized >= today;
+        })
+        .map((dayBudget: DayBudget) => ({
+          date: dayBudget.date.toISOString(),
+          limit: dayBudget.limit,
+          spent: dayBudget.spent,
+          balance: dayBudget.limit // Store the limit as balance for historical reference
+        }));
 
-      await fetch("/api/db/daily-budgets", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ budgets: budgetsToSave }),
-        credentials: "include",
-      });
+      if (budgetsToSave.length > 0) {
+        await fetch("/api/db/daily-budgets", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ budgets: budgetsToSave }),
+          credentials: "include",
+        });
+      }
     } catch (error) {
       console.error("Failed to save daily budgets:", error);
     }
@@ -165,7 +177,7 @@ export default function Home() {
         const budget = await distributeBudget(
           budgetAmount,
           new Date(),
-          [],
+          storedTransactions, // Use all transactions for pattern analysis
           transactionsInUAH,
           excludedTransactionIds,
           budgetAmount, // currentBalance = card balance in UAH
@@ -286,7 +298,7 @@ export default function Home() {
     const createInitialBudget = async () => {
       if (!monthBudget) {
         const budgetAmount = settings.accountBalance || 0;
-        const budget = await distributeBudget(budgetAmount, new Date(), [], [], excludedTransactionIds, budgetAmount, session?.user?.id);
+        const budget = await distributeBudget(budgetAmount, new Date(), transactions, [], excludedTransactionIds, budgetAmount, session?.user?.id);
         setMonthBudget(budget);
         
         // Save daily budgets to preserve historical limits
@@ -316,7 +328,7 @@ export default function Home() {
       const budget = await distributeBudget(
         budgetAmount,
         new Date(),
-        [],
+        transactions, // Use all transactions for pattern analysis
         currentMonthTx,
         excludedTransactionIds,
         budgetAmount, // currentBalance = card balance in UAH
