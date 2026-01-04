@@ -133,10 +133,8 @@ export function CategoriesPage() {
   useEffect(() => {
     const now = new Date();
     const currentFinancialStart = getFinancialMonthStart(now, financialDayStart);
-    // Only update if the current range doesn't match the financial month
-    if (Math.abs(dateRange.from.getTime() - currentFinancialStart.getTime()) > 86400000) {
-      setDateRange({ from: currentFinancialStart, to: now });
-    }
+    setDateRange({ from: currentFinancialStart, to: now });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [financialDayStart]);
   
   // Sorting state
@@ -429,24 +427,6 @@ export function CategoriesPage() {
                 <RefreshCw className={`w-3.5 h-3.5 ${loadingHistory ? "animate-spin" : ""}`} />
                 <span className="ml-1.5 text-xs">{loadingHistory ? "..." : "Оновити"}</span>
               </Button>
-            </div>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="range"
-                    selected={{ from: dateRange.from, to: dateRange.to }}
-                    onSelect={(range) => {
-                      if (range?.from && range?.to) {
-                        setDateRange({ from: range.from, to: range.to });
-                        setCalendarOpen(false);
-                      } else if (range?.from) {
-                        setDateRange(prev => ({ ...prev, from: range.from! }));
-                      }
-                    }}
-                    numberOfMonths={2}
-                    locale={uk}
-                  />
-                </PopoverContent>
-              </Popover>
             </div>
           </CardTitle>
         </CardHeader>
