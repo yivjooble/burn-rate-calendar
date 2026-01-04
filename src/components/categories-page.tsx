@@ -396,9 +396,8 @@ export function CategoriesPage() {
 
       {/* Pie Chart - Large with hover effects */}
       {categoryData.length > 0 && (
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 to-slate-800 p-5 text-white">
-          <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-blue-500/10" />
-          <div className="relative">
+        <Card>
+          <CardContent className="p-5">
             <div className="flex flex-col items-center">
               {/* Pie Chart */}
               <div className="w-72 h-72 md:w-80 md:h-80">
@@ -417,10 +416,10 @@ export function CategoriesPage() {
                       style={{ cursor: "pointer" }}
                     >
                       {categoryData.map((entry) => (
-                        <Cell 
-                          key={entry.key} 
+                        <Cell
+                          key={entry.key}
                           fill={entry.color}
-                          stroke={selectedCategory === entry.key ? "#fff" : "transparent"}
+                          stroke={selectedCategory === entry.key ? "#000" : "transparent"}
                           strokeWidth={selectedCategory === entry.key ? 3 : 0}
                         />
                       ))}
@@ -431,156 +430,126 @@ export function CategoriesPage() {
                         name
                       ]}
                       contentStyle={{
-                        backgroundColor: "rgba(15, 23, 42, 0.95)",
-                        border: "1px solid rgba(255,255,255,0.1)",
-                        borderRadius: "12px",
-                        color: "white",
-                        padding: "12px 16px",
+                        backgroundColor: "white",
+                        border: "1px solid #e5e7eb",
+                        borderRadius: "8px",
+                        boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
                       }}
-                      labelStyle={{ color: "white", fontWeight: 600, marginBottom: 4 }}
-                      itemStyle={{ color: "rgba(255,255,255,0.8)" }}
                     />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-              
+
               {/* Center text */}
               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
-                <p className="text-xs text-white/50 uppercase tracking-wider">Всього</p>
-                <p className="text-2xl font-light">
+                <p className="text-xs text-muted-foreground uppercase tracking-wider">Всього</p>
+                <p className="text-2xl font-light text-foreground">
                   {(totalExpenses / 100).toLocaleString("uk-UA", { maximumFractionDigits: 0 })}
-                  <span className="text-sm text-white/50 ml-0.5">₴</span>
+                  <span className="text-sm text-muted-foreground ml-0.5">₴</span>
                 </p>
               </div>
             </div>
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       )}
 
-      {/* Categories Grid - Modern cards */}
+      {/* Categories List */}
       {categoryData.length > 0 && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-medium text-muted-foreground">Всі категорії</h3>
-            <Dialog open={newCategoryDialogOpen} onOpenChange={setNewCategoryDialogOpen}>
-              <DialogTrigger asChild>
-                <button className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
-                  <Plus className="w-3 h-3" />
-                  Додати
-                </button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Нова категорія</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4 pt-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="category-name">Назва</Label>
-                    <Input
-                      id="category-name"
-                      value={newCategoryName}
-                      onChange={(e) => setNewCategoryName(e.target.value)}
-                      placeholder="Наприклад: Підписки"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center justify-between">
+              <span>Всі категорії</span>
+              <Dialog open={newCategoryDialogOpen} onOpenChange={setNewCategoryDialogOpen}>
+                <DialogTrigger asChild>
+                  <button className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
+                    <Plus className="w-3 h-3" />
+                    Додати
+                  </button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Нова категорія</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 pt-4">
                     <div className="space-y-2">
-                      <Label htmlFor="category-icon">Іконка</Label>
+                      <Label htmlFor="category-name">Назва</Label>
                       <Input
-                        id="category-icon"
-                        value={newCategoryIcon}
-                        onChange={(e) => setNewCategoryIcon(e.target.value)}
-                        placeholder="📁"
+                        id="category-name"
+                        value={newCategoryName}
+                        onChange={(e) => setNewCategoryName(e.target.value)}
+                        placeholder="Наприклад: Підписки"
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="category-color">Колір</Label>
-                      <Input
-                        id="category-color"
-                        type="color"
-                        value={newCategoryColor}
-                        onChange={(e) => setNewCategoryColor(e.target.value)}
-                        className="h-10 p-1"
-                      />
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="category-icon">Іконка</Label>
+                        <Input
+                          id="category-icon"
+                          value={newCategoryIcon}
+                          onChange={(e) => setNewCategoryIcon(e.target.value)}
+                          placeholder="📁"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="category-color">Колір</Label>
+                        <Input
+                          id="category-color"
+                          type="color"
+                          value={newCategoryColor}
+                          onChange={(e) => setNewCategoryColor(e.target.value)}
+                          className="h-10 p-1"
+                        />
+                      </div>
                     </div>
+                    <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
+                      <span className="text-xl">{newCategoryIcon}</span>
+                      <span className="font-medium" style={{ color: newCategoryColor }}>
+                        {newCategoryName || "Попередній перегляд"}
+                      </span>
+                    </div>
+                    <Button onClick={handleCreateCategory} className="w-full" disabled={!newCategoryName.trim()}>
+                      Створити
+                    </Button>
                   </div>
-                  <div className="flex items-center gap-2 p-3 bg-muted rounded-lg">
-                    <span className="text-xl">{newCategoryIcon}</span>
-                    <span className="font-medium" style={{ color: newCategoryColor }}>
-                      {newCategoryName || "Попередній перегляд"}
-                    </span>
-                  </div>
-                  <Button onClick={handleCreateCategory} className="w-full" disabled={!newCategoryName.trim()}>
-                    Створити
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
-          </div>
-          
-          <div className="grid grid-cols-2 gap-2">
-            {categoryData.map((category) => {
-              const percentage = totalExpenses > 0 ? (category.total / totalExpenses) * 100 : 0;
-              const isSelected = selectedCategory === category.key;
-              
-              return (
-                <button
-                  key={category.key}
-                  onClick={() => setSelectedCategory(category.key)}
-                  className={cn(
-                    "relative p-3 rounded-xl text-left transition-all active:scale-[0.98]",
-                    isSelected 
-                      ? "bg-slate-900 text-white shadow-lg" 
-                      : "bg-muted/30 hover:bg-muted/50"
-                  )}
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <span className="text-lg">{category.icon}</span>
-                    <span className={cn(
-                      "text-[10px] px-1.5 py-0.5 rounded-full",
-                      isSelected ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"
-                    )}>
-                      {percentage.toFixed(0)}%
-                    </span>
-                  </div>
-                  <p className={cn(
-                    "text-sm font-medium truncate",
-                    isSelected ? "text-white" : "text-foreground"
-                  )}>
-                    {category.name}
-                  </p>
-                  <p className={cn(
-                    "text-lg font-light tabular-nums",
-                    isSelected ? "text-white/90" : "text-foreground/70"
-                  )}>
-                    {(category.total / 100).toLocaleString("uk-UA", { maximumFractionDigits: 0 })}
-                    <span className="text-xs ml-0.5">₴</span>
-                  </p>
-                  <p className={cn(
-                    "text-[10px] mt-1",
-                    isSelected ? "text-white/50" : "text-muted-foreground"
-                  )}>
-                    {category.count} транзакцій
-                  </p>
-                  
-                  {/* Progress indicator */}
-                  <div className={cn(
-                    "absolute bottom-0 left-3 right-3 h-0.5 rounded-full overflow-hidden",
-                    isSelected ? "bg-white/20" : "bg-muted"
-                  )}>
-                    <div 
-                      className="h-full rounded-full transition-all duration-300"
-                      style={{ 
-                        width: `${percentage}%`,
-                        backgroundColor: isSelected ? "white" : category.color 
-                      }}
-                    />
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
+                </DialogContent>
+              </Dialog>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-1">
+              {categoryData.map((category) => {
+                const percentage = totalExpenses > 0 ? (category.total / totalExpenses) * 100 : 0;
+                const isSelected = selectedCategory === category.key;
+
+                return (
+                  <button
+                    key={category.key}
+                    onClick={() => setSelectedCategory(category.key)}
+                    className={cn(
+                      "w-full flex items-center justify-between p-2 rounded-lg text-sm transition-colors",
+                      isSelected
+                        ? "bg-muted/50"
+                        : "bg-muted/30 hover:bg-muted/40"
+                    )}
+                  >
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <span className="text-lg">{category.icon}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium truncate">{category.name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {category.count} транзакцій • {percentage.toFixed(0)}%
+                        </div>
+                      </div>
+                    </div>
+                    <div className="font-bold" style={{ color: category.color }}>
+                      {(category.total / 100).toLocaleString("uk-UA")} ₴
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Transactions list for selected category */}
