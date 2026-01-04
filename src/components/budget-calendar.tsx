@@ -25,7 +25,9 @@ function getFinancialMonthStart(date: Date, financialDayStart: number): Date {
 function getFinancialMonthEnd(date: Date, financialDayStart: number): Date {
   const start = getFinancialMonthStart(date, financialDayStart);
   const end = new Date(start);
+  // Add one month to get the start of next financial month
   end.setMonth(end.getMonth() + 1);
+  // Set to the day before next financial month starts (handles year rollover automatically)
   end.setDate(financialDayStart - 1);
   end.setHours(23, 59, 59, 999);
   return end;
@@ -59,10 +61,14 @@ interface BudgetCalendarProps {
 }
 
 export function BudgetCalendar({ dailyLimits, onDayClick }: BudgetCalendarProps) {
-  const [selectedFinancialMonth, setSelectedFinancialMonth] = useState(new Date());
   const { transactions, excludedTransactionIds, settings } = useBudgetStore();
-  
   const financialDayStart = settings.financialMonthStart || 1;
+  
+  // Initialize with current financial month start to ensure correct initial state
+  const [selectedFinancialMonth, setSelectedFinancialMonth] = useState(() => {
+    return getFinancialMonthStart(new Date(), financialDayStart);
+  });
+  
   const currentFinancialMonthStart = getFinancialMonthStart(new Date(), financialDayStart);
   const selectedFinancialMonthStart = getFinancialMonthStart(selectedFinancialMonth, financialDayStart);
   const isCurrentFinancialMonth = currentFinancialMonthStart.getTime() === selectedFinancialMonthStart.getTime();
@@ -72,12 +78,11 @@ export function BudgetCalendar({ dailyLimits, onDayClick }: BudgetCalendarProps)
   const financialMonthEnd = getFinancialMonthEnd(selectedFinancialMonth, financialDayStart);
   const days = getFinancialMonthDays(selectedFinancialMonth, financialDayStart);
   
-  // For calendar grid, we still need calendar month start/end for proper grid layout
-  const calendarMonthStart = startOfMonth(selectedFinancialMonth);
-  const calendarMonthEnd = endOfMonth(selectedFinancialMonth);
-  const calendarDays = eachDayOfInterval({ start: calendarMonthStart, end: calendarMonthEnd });
+  // For calendar grid, we need to show all days from financial month start to end
+  // This ensures we show the correct range (e.g., Dec 5 - Jan 4)
+  const calendarDays = eachDayOfInterval({ start: financialMonthStart, end: financialMonthEnd });
 
-  const firstDayOfWeek = calendarMonthStart.getDay();
+  const firstDayOfWeek = financialMonthStart.getDay();
   const paddingDays = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
 
   const weekDays = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд"];
@@ -85,24 +90,32 @@ export function BudgetCalendar({ dailyLimits, onDayClick }: BudgetCalendarProps)
   const goToPreviousMonth = useCallback(() => {
     setSelectedFinancialMonth(prev => {
       // Go back by one financial month
-      const newDate = new Date(prev);
-      newDate.setDate(newDate.getDate() - 30); // Approximate one month back
-      return newDate;
+      const currentStart = getFinancialMonthStart(prev, financialDayStart);
+      const newDate = new Date(currentStart);
+      newDate.setDate(newDate.getDate() - 1); // Go to day before current financial month starts
+      // Ensure we get the correct financial month for this date
+      const newFinancialMonthStart = getFinancialMonthStart(newDate, financialDayStart);
+      // Return a date that falls within the previous financial month
+      return newFinancialMonthStart;
     });
-  }, []);
+  }, [financialDayStart]);
   
   const goToNextMonth = useCallback(() => {
     setSelectedFinancialMonth(prev => {
       // Go forward by one financial month
-      const newDate = new Date(prev);
-      newDate.setDate(newDate.getDate() + 30); // Approximate one month forward
-      return newDate;
+      const currentEnd = getFinancialMonthEnd(prev, financialDayStart);
+      const newDate = new Date(currentEnd);
+      newDate.setDate(newDate.getDate() + 1); // Go to day after current financial month ends
+      // Ensure we get the correct financial month for this date
+      const newFinancialMonthStart = getFinancialMonthStart(newDate, financialDayStart);
+      // Return a date that falls within the next financial month
+      return newFinancialMonthStart;
     });
-  }, []);
+  }, [financialDayStart]);
   
   const goToCurrentMonth = useCallback(() => {
-    setSelectedFinancialMonth(new Date());
-  }, []);
+    setSelectedFinancialMonth(getFinancialMonthStart(new Date(), financialDayStart));
+  }, [financialDayStart]);
   
   const financialMonthLabel = getFinancialMonthLabel(selectedFinancialMonth, financialDayStart);
 
@@ -114,7 +127,8 @@ export function BudgetCalendar({ dailyLimits, onDayClick }: BudgetCalendarProps)
     
     transactions.forEach(tx => {
       const txDate = new Date(tx.time * 1000);
-      if (!isSameMonth(txDate, selectedFinancialMonth)) return;
+      // Check if transaction is within the financial month range
+      if (txDate < financialMonthStart || txDate > financialMonthEnd) return;
       if (!isExpense(tx, transactions)) return;
       if (excludedTransactionIds.includes(tx.id)) return;
       
@@ -126,7 +140,7 @@ export function BudgetCalendar({ dailyLimits, onDayClick }: BudgetCalendarProps)
     });
     
     return dataMap;
-  }, [transactions, selectedFinancialMonth, isCurrentFinancialMonth, excludedTransactionIds]);
+  }, [transactions, financialMonthStart, financialMonthEnd, isCurrentFinancialMonth, excludedTransactionIds]);
 
   // Calculate average daily limit for historical months
   const avgDailyLimit = useMemo(() => {
@@ -201,7 +215,9 @@ export function BudgetCalendar({ dailyLimits, onDayClick }: BudgetCalendarProps)
             {financialMonthLabel}
           </span>
           <span className="text-xs text-muted-foreground font-medium">
-            {format(selectedFinancialMonth, "yyyy")}
+            {financialMonthStart.getFullYear() !== financialMonthEnd.getFullYear() 
+              ? `${financialMonthStart.getFullYear()}—${financialMonthEnd.getFullYear()}`
+              : format(financialMonthStart, "yyyy")}
           </span>
         </button>
         
@@ -242,9 +258,8 @@ export function BudgetCalendar({ dailyLimits, onDayClick }: BudgetCalendarProps)
         ))}
 
         {calendarDays.map((day) => {
-          // Check if this day is within the financial month
-          const isInFinancialMonth = day >= financialMonthStart && day <= financialMonthEnd;
-          const dayInfo = isCurrentFinancialMonth ? getDayInfo(day) : (isInFinancialMonth ? getDayInfo(day) : null);
+          // All days in calendarDays are already within the financial month
+          const dayInfo = getDayInfo(day);
           const isTodayDay = isToday(day);
           const isPast = day < new Date() && !isTodayDay;
           const hasSpending = dayInfo && dayInfo.spent > 0;
@@ -271,12 +286,8 @@ export function BudgetCalendar({ dailyLimits, onDayClick }: BudgetCalendarProps)
                 "relative h-14 md:h-20 rounded-md md:rounded-lg border overflow-hidden transition-all active:scale-95 md:hover:shadow-md md:hover:border-primary/50",
                 isTodayDay && "ring-2 ring-primary ring-offset-1",
                 dayInfo?.percentage && dayInfo.percentage >= 100 && "border-red-300",
-                // Only make days outside financial month gray for historical months
-                !isCurrentFinancialMonth && !isInFinancialMonth && "opacity-40 bg-gray-50 border-gray-200",
                 isPast && !hasSpending && dayInfo && "bg-gray-100",
-                !isPast && !hasSpending && dayInfo && "bg-card",
-                // For current financial month, show all days but make non-financial days less interactive
-                isCurrentFinancialMonth && !isInFinancialMonth && "opacity-60 cursor-not-allowed"
+                !isPast && !hasSpending && dayInfo && "bg-card"
               )}
             >
               {/* Color fill from bottom */}
