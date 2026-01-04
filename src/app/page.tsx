@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { format } from "date-fns";
 import { useBudgetStore } from "@/store/budget-store";
 import { BudgetCalendar } from "@/components/budget-calendar";
 import { BudgetSummary } from "@/components/budget-summary";
@@ -124,7 +125,9 @@ export default function Home() {
         .filter((dayBudget: DayBudget) => {
           const dayNormalized = new Date(dayBudget.date);
           dayNormalized.setHours(0, 0, 0, 0);
-          return dayNormalized >= today;
+          const shouldSave = dayNormalized >= today;
+          console.log(`[BUDGET] Day ${format(dayBudget.date, "yyyy-MM-dd")}: ${shouldSave ? "SAVE" : "SKIP"} (limit: ${dayBudget.limit})`);
+          return shouldSave;
         })
         .map((dayBudget: DayBudget) => ({
           date: dayBudget.date.toISOString(),

@@ -113,8 +113,15 @@ export async function distributeBudget(
   let historicalBudgets: Map<string, { limit: number; spent: number; balance: number }> = new Map();
   if (userId) {
     try {
+      // Use financial month boundaries for historical budgets
+      const financialMonthStart = new Date(currentDate);
+      const financialMonthEnd = new Date(currentDate);
+      
+      // If we have financial month settings, use them
+      // For now, we'll use calendar month as fallback
       const monthStart = startOfMonth(currentDate);
       const monthEnd = endOfMonth(currentDate);
+      
       const savedBudgets = await getUserDailyBudgets(userId, monthStart, monthEnd);
       savedBudgets.forEach(budget => {
         const dateKey = format(budget.date, "yyyy-MM-dd");
@@ -147,19 +154,23 @@ export async function distributeBudget(
       const historicalBudget = historicalBudgets.get(dateKey);
       if (historicalBudget) {
         limit = historicalBudget.limit;
+        console.log(`[BUDGET] Using historical budget for ${dateKey}: ${historicalBudget.limit}`);
       } else {
-        limit = baseDailyLimit;
+        // For past days without historical budget, use 0 to avoid changing historical limits
+        // This prevents budget changes from affecting past days that weren't previously tracked
+        limit = 0;
+        console.log(`[BUDGET] No historical budget for ${dateKey}, using 0 to preserve historical data`);
       }
     } else {
       // For today and future days, use current balance (what's actually available)
       // This matches the "На день" calculation in budget-summary.tsx
       const availableBudget = currentBalance !== undefined ? Math.max(0, currentBalance) : Math.max(0, remainingBudget);
-      const weightInfo = weights.find((w) => isSameDay(w.day, day));
-      if (weightInfo && totalWeight > 0) {
-        limit = (availableBudget * weightInfo.weight) / totalWeight;
-      } else {
-        limit = availableBudget / Math.max(futureDays.length, 1);
-      }
+      
+      // Use simple equal distribution for future days to avoid uneven limits
+      // This is more predictable than weighted distribution based on spending patterns
+      limit = availableBudget / Math.max(futureDays.length, 1);
+      
+      console.log(`[BUDGET] Future day ${dateKey}: available=${availableBudget}, days=${futureDays.length}, limit=${limit}`);
     }
 
     const remaining = limit - daySpent;
