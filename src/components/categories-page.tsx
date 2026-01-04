@@ -398,7 +398,7 @@ export function CategoriesPage() {
       {categoryData.length > 0 && (
         <Card>
           <CardContent className="p-5">
-            <div className="flex flex-col items-center">
+            <div className="relative flex flex-col items-center">
               {/* Pie Chart */}
               <div className="w-72 h-72 md:w-80 md:h-80">
                 <ResponsiveContainer width="100%" height="100%">
@@ -458,7 +458,9 @@ export function CategoriesPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center justify-between">
-              <span>Всі категорії</span>
+              <div className="flex items-center gap-2">
+                <span>Всі категорії</span>
+              </div>
               <Dialog open={newCategoryDialogOpen} onOpenChange={setNewCategoryDialogOpen}>
                 <DialogTrigger asChild>
                   <button className="text-xs text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">

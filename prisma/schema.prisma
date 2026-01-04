@@ -35,6 +35,7 @@ model User {
   settings             UserSetting[]
   transactions         UserTransaction[]
   excludedTransactions UserExcludedTransaction[]
+  dailyBudgets         UserDailyBudget[]
 
   @@map("users")
 }
@@ -79,6 +80,23 @@ model UserExcludedTransaction {
 
   @@id([id, userId])
   @@map("user_excluded_transactions")
+}
+
+model UserDailyBudget {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  date      DateTime // Date for this budget (normalized to start of day)
+  limit     Int      // Daily budget limit in kopiykas
+  spent     Int      @default(0) // Amount spent on this day in kopiykas
+  balance   Int      // Account balance at time of calculation in kopiykas
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId, date])
+  @@map("user_daily_budgets")
 }
 
 // Legacy tables for backward compatibility during migration

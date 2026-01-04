@@ -636,3 +636,147 @@ export async function clearUserExcludedTransactions(
 ): Promise<void> {
   await prisma.userExcludedTransaction.deleteMany({ where: { userId } });
 }
+
+// =============================================================================
+// USER DAILY BUDGETS (Historical Budget Preservation)
+// =============================================================================
+
+export interface DbUserDailyBudget {
+  id: string;
+  user_id: string;
+  date: Date;
+  limit: number;
+  spent: number;
+  balance: number;
+  created_at: Date;
+  updated_at: Date;
+}
+
+/**
+ * Save or update daily budget for a specific date
+ * This preserves historical budget limits
+ */
+export async function saveUserDailyBudget(
+  userId: string,
+  date: Date,
+  limit: number,
+  spent: number,
+  balance: number
+): Promise<void> {
+  // Normalize date to start of day (UTC)
+  const normalizedDate = new Date(date);
+  normalizedDate.setUTCHours(0, 0, 0, 0);
+
+  await prisma.userDailyBudget.upsert({
+    where: {
+      userId_date: {
+        userId,
+        date: normalizedDate,
+      },
+    },
+    update: {
+      limit,
+      spent,
+      balance,
+    },
+    create: {
+      userId,
+      date: normalizedDate,
+      limit,
+      spent,
+      balance,
+    },
+  });
+}
+
+/**
+ * Get daily budget for a specific date
+ */
+export async function getUserDailyBudget(
+  userId: string,
+  date: Date
+): Promise<DbUserDailyBudget | null> {
+  const normalizedDate = new Date(date);
+  normalizedDate.setUTCHours(0, 0, 0, 0);
+
+  const budget = await prisma.userDailyBudget.findUnique({
+    where: {
+      userId_date: {
+        userId,
+        date: normalizedDate,
+      },
+    },
+  });
+
+  if (!budget) return null;
+
+  return {
+    id: budget.id,
+    user_id: budget.userId,
+    date: budget.date,
+    limit: budget.limit,
+    spent: budget.spent,
+    balance: budget.balance,
+    created_at: budget.createdAt,
+    updated_at: budget.updatedAt,
+  };
+}
+
+/**
+ * Get all daily budgets for a user within a date range
+ */
+export async function getUserDailyBudgets(
+  userId: string,
+  fromDate: Date,
+  toDate: Date
+): Promise<DbUserDailyBudget[]> {
+  const normalizedFrom = new Date(fromDate);
+  normalizedFrom.setUTCHours(0, 0, 0, 0);
+
+  const normalizedTo = new Date(toDate);
+  normalizedTo.setUTCHours(23, 59, 59, 999);
+
+  const budgets = await prisma.userDailyBudget.findMany({
+    where: {
+      userId,
+      date: {
+        gte: normalizedFrom,
+        lte: normalizedTo,
+      },
+    },
+    orderBy: {
+      date: 'asc',
+    },
+  });
+
+  return budgets.map((b) => ({
+    id: b.id,
+    user_id: b.userId,
+    date: b.date,
+    limit: b.limit,
+    spent: b.spent,
+    balance: b.balance,
+    created_at: b.createdAt,
+    updated_at: b.updatedAt,
+  }));
+}
+
+/**
+ * Delete daily budgets after a specific date (for cleanup)
+ */
+export async function deleteUserDailyBudgetsAfter(
+  userId: string,
+  date: Date
+): Promise<void> {
+  const normalizedDate = new Date(date);
+  normalizedDate.setUTCHours(0, 0, 0, 0);
+
+  await prisma.userDailyBudget.deleteMany({
+    where: {
+      userId,
+      date: {
+        gte: normalizedDate,
+      },
+    },
+  });
+}
