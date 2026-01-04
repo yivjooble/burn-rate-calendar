@@ -240,7 +240,7 @@ export function BudgetCalendar({ dailyLimits, onDayClick }: BudgetCalendarProps)
         {calendarDays.map((day) => {
           // Check if this day is within the financial month
           const isInFinancialMonth = day >= financialMonthStart && day <= financialMonthEnd;
-          const dayInfo = isInFinancialMonth ? getDayInfo(day) : null;
+          const dayInfo = isCurrentFinancialMonth ? getDayInfo(day) : (isInFinancialMonth ? getDayInfo(day) : null);
           const isTodayDay = isToday(day);
           const isPast = day < new Date() && !isTodayDay;
           const hasSpending = dayInfo && dayInfo.spent > 0;
@@ -267,9 +267,12 @@ export function BudgetCalendar({ dailyLimits, onDayClick }: BudgetCalendarProps)
                 "relative h-14 md:h-20 rounded-md md:rounded-lg border overflow-hidden transition-all active:scale-95 md:hover:shadow-md md:hover:border-primary/50",
                 isTodayDay && "ring-2 ring-primary ring-offset-1",
                 dayInfo?.percentage && dayInfo.percentage >= 100 && "border-red-300",
-                !isInFinancialMonth && "opacity-40 bg-gray-50 border-gray-200",
-                isPast && !hasSpending && isInFinancialMonth && "bg-gray-100",
-                !isPast && !hasSpending && isInFinancialMonth && "bg-card"
+                // Only make days outside financial month gray for historical months
+                !isCurrentFinancialMonth && !isInFinancialMonth && "opacity-40 bg-gray-50 border-gray-200",
+                isPast && !hasSpending && dayInfo && "bg-gray-100",
+                !isPast && !hasSpending && dayInfo && "bg-card",
+                // For current financial month, show all days but make non-financial days less interactive
+                isCurrentFinancialMonth && !isInFinancialMonth && "opacity-60 cursor-not-allowed"
               )}
             >
               {/* Color fill from bottom */}

@@ -35,10 +35,20 @@ export async function POST(request: NextRequest) {
     const userId = await requireAuth();
     const body: BudgetRequest = await request.json();
 
+    console.log("[AI-BUDGET] Request received:", {
+      userId,
+      totalBudget: body.totalBudget,
+      currentBalance: body.currentBalance,
+      transactionsCount: body.transactions?.length || 0,
+      startDate: body.startDate,
+      endDate: body.endDate
+    });
+
     const { totalBudget, currentBalance, transactions, startDate, endDate, financialMonthStart = 1 } = body;
 
     // Validate input
     if (!totalBudget || !currentBalance || !transactions || !startDate || !endDate) {
+      console.error("[AI-BUDGET] Missing required fields:", { totalBudget, currentBalance, hasTransactions: !!transactions, startDate, endDate });
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
@@ -79,8 +89,15 @@ export async function POST(request: NextRequest) {
 }
 
 function analyzeSpendingPatterns(transactions: TransactionData[], startDate: Date, financialMonthStart: number) {
+  console.log("[AI-BUDGET] Analyzing spending patterns:", {
+    totalTransactions: transactions.length,
+    startDate: startDate.toISOString(),
+    financialMonthStart
+  });
+
   // Filter expenses only
   const expenses = transactions.filter(tx => tx.amount < 0);
+  console.log("[AI-BUDGET] Expenses found:", expenses.length);
   
   // Group by day of week and month
   const dayOfWeekPatterns: Record<number, number> = {};
@@ -97,6 +114,9 @@ function analyzeSpendingPatterns(transactions: TransactionData[], startDate: Dat
     monthlyPatterns[month] = (monthlyPatterns[month] || 0) + Math.abs(tx.amount);
     categoryPatterns[mcc] = (categoryPatterns[mcc] || 0) + Math.abs(tx.amount);
   });
+  
+  console.log("[AI-BUDGET] Day of week patterns:", dayOfWeekPatterns);
+  console.log("[AI-BUDGET] Category patterns:", Object.entries(categoryPatterns).slice(0, 5));
   
   // Calculate average daily spending by day of week
   const dayOfWeekAverages: Record<number, number> = {};

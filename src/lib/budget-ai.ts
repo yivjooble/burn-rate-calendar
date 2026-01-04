@@ -212,10 +212,10 @@ export async function distributeBudget(
         limit = historicalBudget.limit;
         console.log(`[BUDGET] Using historical budget for ${dateKey}: ${historicalBudget.limit}`);
       } else {
-        // For past days without historical budget, use 0 to avoid changing historical limits
-        // This prevents budget changes from affecting past days that weren't previously tracked
-        limit = 0;
-        console.log(`[BUDGET] No historical budget for ${dateKey}, using 0 to preserve historical data`);
+        // For past days without historical budget, use base daily limit
+        // This ensures past days have reasonable limits for display purposes
+        limit = baseDailyLimit;
+        console.log(`[BUDGET] No historical budget for ${dateKey}, using base: ${baseDailyLimit}`);
       }
     } else {
       // For today and future days, use AI predictions if available, otherwise fallback to traditional method
