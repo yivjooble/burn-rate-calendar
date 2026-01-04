@@ -31,6 +31,38 @@ import { isExpense } from "@/lib/monobank";
 import { useBudgetStore } from "@/store/budget-store";
 import { cn } from "@/lib/utils";
 import { getMccCategory, getCategoryByKey, getAllCategories, MCC_CATEGORIES, getCategoryFromDescription } from "@/lib/mcc-categories";
+
+// Helper functions for financial month calculations
+function getFinancialMonthStart(date: Date, financialDayStart: number): Date {
+  const start = new Date(date);
+  if (start.getDate() >= financialDayStart) {
+    start.setDate(financialDayStart);
+  } else {
+    start.setDate(financialDayStart);
+    start.setMonth(start.getMonth() - 1);
+  }
+  start.setHours(0, 0, 0, 0);
+  return start;
+}
+
+function getFinancialMonthEnd(date: Date, financialDayStart: number): Date {
+  const start = getFinancialMonthStart(date, financialDayStart);
+  const end = new Date(start);
+  end.setMonth(end.getMonth() + 1);
+  end.setDate(financialDayStart - 1);
+  end.setHours(23, 59, 59, 999);
+  return end;
+}
+
+function getPreviousFinancialMonthStart(date: Date, financialDayStart: number, monthsBack: number): Date {
+  let currentStart = getFinancialMonthStart(date, financialDayStart);
+  for (let i = 0; i < monthsBack; i++) {
+    const prevDate = new Date(currentStart);
+    prevDate.setDate(prevDate.getDate() - 1);
+    currentStart = getFinancialMonthStart(prevDate, financialDayStart);
+  }
+  return currentStart;
+}
 import {
   LineChart,
   Line,
@@ -78,6 +110,7 @@ function getTransactionCategory(tx: Transaction, transactionCategories: Record<s
 
 export function CategoriesPage() {
   const { excludedTransactionIds, settings, transactionCategories, customCategories, setTransactionCategory, addCustomCategory, isLoading: globalLoading, setLoading: setGlobalLoading } = useBudgetStore();
+  const financialDayStart = settings?.financialMonthStart || 1;
   const [historicalTransactions, setHistoricalTransactions] = useState<Transaction[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -87,12 +120,24 @@ export function CategoriesPage() {
   const [newCategoryIcon, setNewCategoryIcon] = useState("📁");
   const [newCategoryColor, setNewCategoryColor] = useState("#6366f1");
   
-  // Date range state - default to current month
+  // Date range state - default to current financial month
   const [dateRange, setDateRange] = useState<{ from: Date; to: Date }>(() => {
     const now = new Date();
-    return { from: startOfMonth(now), to: now };
+    const defaultFinancialDayStart = 1; // Use default for initialization
+    const financialStart = getFinancialMonthStart(now, defaultFinancialDayStart);
+    return { from: financialStart, to: now };
   });
   const [calendarOpen, setCalendarOpen] = useState(false);
+  
+  // Update dateRange when financialDayStart changes or on mount
+  useEffect(() => {
+    const now = new Date();
+    const currentFinancialStart = getFinancialMonthStart(now, financialDayStart);
+    // Only update if the current range doesn't match the financial month
+    if (Math.abs(dateRange.from.getTime() - currentFinancialStart.getTime()) > 86400000) {
+      setDateRange({ from: currentFinancialStart, to: now });
+    }
+  }, [financialDayStart]);
   
   // Sorting state
   const [categorySortBy, setCategorySortBy] = useState<"amount" | "count" | "name">("amount");
@@ -317,18 +362,8 @@ export function CategoriesPage() {
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-base">
-            <div className="flex items-center justify-between mb-2">
+            <div className="mb-2">
               <span>Категорії витрат</span>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-7"
-                onClick={loadFromStorage}
-                disabled={loadingHistory}
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${loadingHistory ? "animate-spin" : ""}`} />
-                <span className="ml-1.5 text-xs">{loadingHistory ? "..." : "Оновити"}</span>
-              </Button>
             </div>
             <div className="flex flex-wrap items-center gap-1.5">
               {[
@@ -338,7 +373,8 @@ export function CategoriesPage() {
                 { label: "1 рік", months: 11 },
               ].map((preset) => {
                 const now = new Date();
-                const presetFrom = startOfMonth(subMonths(now, preset.months));
+                const presetFrom = getPreviousFinancialMonthStart(now, financialDayStart, preset.months);
+                const currentFinancialStart = getFinancialMonthStart(now, financialDayStart);
                 const isActive =
                   Math.abs(dateRange.from.getTime() - presetFrom.getTime()) < 86400000 &&
                   Math.abs(dateRange.to.getTime() - now.getTime()) < 86400000;
@@ -361,9 +397,39 @@ export function CategoriesPage() {
                 <PopoverTrigger asChild>
                   <Button variant="outline" size="sm" className="h-7 text-xs font-normal">
                     <CalendarIcon className="w-3 h-3 mr-1" />
-                    {format(dateRange.from, "d.MM", { locale: uk })} - {format(dateRange.to, "d.MM.yy", { locale: uk })}
+                    {dateRange.from.getFullYear() !== dateRange.to.getFullYear()
+                      ? `${format(dateRange.from, "d.MM.yy", { locale: uk })} - ${format(dateRange.to, "d.MM.yy", { locale: uk })}`
+                      : `${format(dateRange.from, "d.MM", { locale: uk })} - ${format(dateRange.to, "d.MM.yy", { locale: uk })}`}
                   </Button>
                 </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="range"
+                    selected={{ from: dateRange.from, to: dateRange.to }}
+                    onSelect={(range) => {
+                      if (range?.from && range?.to) {
+                        setDateRange({ from: range.from, to: range.to });
+                        setCalendarOpen(false);
+                      } else if (range?.from) {
+                        setDateRange(prev => ({ ...prev, from: range.from! }));
+                      }
+                    }}
+                    numberOfMonths={2}
+                    locale={uk}
+                  />
+                </PopoverContent>
+              </Popover>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7"
+                onClick={loadFromStorage}
+                disabled={loadingHistory}
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loadingHistory ? "animate-spin" : ""}`} />
+                <span className="ml-1.5 text-xs">{loadingHistory ? "..." : "Оновити"}</span>
+              </Button>
+            </div>
                 <PopoverContent className="w-auto p-0" align="start">
                   <Calendar
                     mode="range"

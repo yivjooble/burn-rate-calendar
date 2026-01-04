@@ -119,10 +119,8 @@ export function BudgetCalendar({ dailyLimits, onDayClick }: BudgetCalendarProps)
   
   const financialMonthLabel = getFinancialMonthLabel(selectedFinancialMonth, financialDayStart);
 
-  // Calculate daily data for historical months from transactions
+  // Calculate daily data from transactions (for both current and historical months)
   const historicalDailyData = useMemo(() => {
-    if (isCurrentFinancialMonth) return null;
-    
     const dataMap = new Map<string, { spent: number; transactions: Transaction[] }>();
     
     transactions.forEach(tx => {
@@ -140,7 +138,7 @@ export function BudgetCalendar({ dailyLimits, onDayClick }: BudgetCalendarProps)
     });
     
     return dataMap;
-  }, [transactions, financialMonthStart, financialMonthEnd, isCurrentFinancialMonth, excludedTransactionIds]);
+  }, [transactions, financialMonthStart, financialMonthEnd, excludedTransactionIds]);
 
   // Calculate average daily limit for historical months
   const avgDailyLimit = useMemo(() => {
@@ -162,13 +160,29 @@ export function BudgetCalendar({ dailyLimits, onDayClick }: BudgetCalendarProps)
 
   // Get day info - either from current month dailyLimits or historical data
   const getDayInfo = (day: Date): { spent: number; limit: number; percentage: number; transactions: Transaction[] } | null => {
+    const dateKey = format(day, "yyyy-MM-dd");
+    
     if (isCurrentFinancialMonth) {
+      // For current month, prefer dailyLimits, but fall back to historical transactions if not found
       const dayData = dailyLimits.find((d) => isSameDay(d.date, day));
-      if (!dayData) return null;
-      const percentage = dayData.limit > 0 ? (dayData.spent / dayData.limit) * 100 : 0;
-      return { spent: dayData.spent, limit: dayData.limit, percentage, transactions: dayData.transactions };
+      if (dayData) {
+        const percentage = dayData.limit > 0 ? (dayData.spent / dayData.limit) * 100 : 0;
+        return { spent: dayData.spent, limit: dayData.limit, percentage, transactions: dayData.transactions };
+      }
+      
+      // If no data in dailyLimits, use historical transactions
+      const histData = historicalDailyData?.get(dateKey);
+      if (histData) {
+        const spent = histData.spent;
+        const limit = avgDailyLimit;
+        const percentage = limit > 0 ? (spent / limit) * 100 : 0;
+        return { spent, limit, percentage, transactions: histData.transactions };
+      }
+      
+      // If no data at all, return null
+      return null;
     } else {
-      const dateKey = format(day, "yyyy-MM-dd");
+      // For historical months, use historical data only
       const histData = historicalDailyData?.get(dateKey);
       const spent = histData?.spent || 0;
       const limit = avgDailyLimit;
