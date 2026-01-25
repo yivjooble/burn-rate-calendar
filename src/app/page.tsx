@@ -10,7 +10,12 @@ import { TwoFactorSettings } from "@/components/two-factor-settings";
 import { DayDetailModal } from "@/components/day-detail-modal";
 import { CategoriesPage } from "@/components/categories-page";
 import { distributeBudget } from "@/lib/budget-ai";
-import { getFinancialMonthBoundaries, getFinancialMonthStart } from "@/lib/monobank";
+import { getFinancialMonthBoundaries, getFinancialMonthStart, getFinancialMonthEnd } from "@/lib/monobank";
+import {
+  calculateHistoricalMonthSummary,
+  fetchStoredDailyBudgets,
+  isCurrentFinancialMonth,
+} from "@/lib/historical-budget";
 import {
   refreshTodayTransactions,
   getAllStoredTransactions,
@@ -59,6 +64,7 @@ export default function Home() {
   const [currencyRates, setCurrencyRates] = useState<CurrencyRate[]>([]);
   const [hasMonoToken, setHasMonoToken] = useState(false);
   const [selectedFinancialMonth, setSelectedFinancialMonth] = useState<Date>(() => new Date());
+  const [displayedBudget, setDisplayedBudget] = useState<typeof monthBudget>(null);
   const backgroundSyncRef = useRef<NodeJS.Timeout | null>(null);
 
   const { initFromDb, dbInitialized } = useBudgetStore();
@@ -324,9 +330,35 @@ export default function Home() {
   }, [isHydrated, settings.accountBalance, settings.financialMonthStart, monthBudget, excludedTransactionIds, setMonthBudget, saveDailyBudgets, session?.user?.id]);
 
   // Handle month change from calendar navigation
-  const handleMonthChange = useCallback((month: Date) => {
+  const handleMonthChange = useCallback(async (month: Date) => {
     setSelectedFinancialMonth(month);
-  }, []);
+
+    const financialDayStart = settings.financialMonthStart || 1;
+    const isCurrent = isCurrentFinancialMonth(month, financialDayStart);
+
+    if (isCurrent) {
+      // For current month, use the live calculated budget
+      setDisplayedBudget(monthBudget);
+    } else {
+      // For historical months, calculate from stored data
+      const monthStart = getFinancialMonthStart(month, financialDayStart);
+      const monthEnd = getFinancialMonthEnd(month, financialDayStart);
+
+      // Fetch stored daily budgets for this month
+      const storedBudgets = await fetchStoredDailyBudgets(monthStart, monthEnd);
+
+      // Calculate historical summary
+      const historicalBudget = calculateHistoricalMonthSummary({
+        transactions,
+        excludedTransactionIds,
+        monthStart,
+        monthEnd,
+        storedBudgets,
+      });
+
+      setDisplayedBudget(historicalBudget);
+    }
+  }, [settings.financialMonthStart, monthBudget, transactions, excludedTransactionIds]);
 
   // Initialize selected month to current financial month when settings load
   useEffect(() => {
@@ -335,6 +367,14 @@ export default function Home() {
       setSelectedFinancialMonth(currentFinancialMonth);
     }
   }, [isHydrated, settings.financialMonthStart]);
+
+  // Sync displayedBudget with monthBudget when viewing current month
+  useEffect(() => {
+    const financialDayStart = settings.financialMonthStart || 1;
+    if (isCurrentFinancialMonth(selectedFinancialMonth, financialDayStart) && monthBudget) {
+      setDisplayedBudget(monthBudget);
+    }
+  }, [monthBudget, selectedFinancialMonth, settings.financialMonthStart]);
 
   // Recalculate budget when excluded transactions or balance change
   const recalculateBudget = useCallback(async () => {
@@ -572,11 +612,11 @@ export default function Home() {
                 </div>
               </div>
 
-              {monthBudget && (
+              {(displayedBudget || monthBudget) && (
                 <>
-                  <BudgetSummary budget={monthBudget} />
+                  <BudgetSummary budget={displayedBudget || monthBudget!} />
                   <BudgetCalendar
-                    dailyLimits={monthBudget.dailyLimits}
+                    dailyLimits={(displayedBudget || monthBudget!).dailyLimits}
                     onDayClick={setSelectedDay}
                     selectedMonth={selectedFinancialMonth}
                     onMonthChange={handleMonthChange}

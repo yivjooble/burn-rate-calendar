@@ -71,6 +71,15 @@ export interface MonthBudget {
   dailyLimits: DayBudget[];
   aiRecommendation?: string;
   currentBalance?: number; // Current card balance for daily limit calculation
+  dailyAverage?: number; // Average spent per day
+  isHistorical?: boolean; // Whether this is a historical month view
+}
+
+export interface StoredDailyBudget {
+  date: string;
+  limit: number;
+  spent: number;
+  balance: number;
 }
 
 export interface UserSettings {
