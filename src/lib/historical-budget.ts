@@ -28,12 +28,15 @@ export function calculateHistoricalMonthSummary({
   const monthStartTs = Math.floor(monthStart.getTime() / 1000);
   const monthEndTs = Math.floor(monthEnd.getTime() / 1000);
 
+  // PERF-002: Use Set for O(1) lookup instead of O(n) array.includes()
+  const excludedSet = new Set(excludedTransactionIds);
+
   const monthTransactions = transactions.filter(
     (tx) =>
       tx.time >= monthStartTs &&
       tx.time <= monthEndTs &&
       isExpense(tx, transactions) &&
-      !excludedTransactionIds.includes(tx.id)
+      !excludedSet.has(tx.id)
   );
 
   // Group transactions by day

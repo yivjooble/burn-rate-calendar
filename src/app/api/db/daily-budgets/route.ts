@@ -1,10 +1,32 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import {
   getUserDailyBudgets,
   saveUserDailyBudget,
   getUserDailyBudget,
 } from "@/lib/db";
 import { requireAuth } from "@/lib/auth-utils";
+
+// Security constants
+const MAX_DATE_RANGE_DAYS = 366; // Maximum allowed date range (1 year)
+const MAX_BUDGETS_PER_REQUEST = 100; // Maximum budgets in single POST request
+
+// Zod schema for input validation (SEC-003)
+const dailyBudgetSchema = z.object({
+  date: z.string().refine((val) => !isNaN(Date.parse(val)), {
+    message: "Invalid date format",
+  }),
+  limit: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+  spent: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
+  balance: z.number().int().min(-Number.MAX_SAFE_INTEGER).max(Number.MAX_SAFE_INTEGER),
+});
+
+const postBodySchema = z.object({
+  budgets: z.array(dailyBudgetSchema).max(MAX_BUDGETS_PER_REQUEST, {
+    message: `Maximum ${MAX_BUDGETS_PER_REQUEST} budgets per request`,
+  }),
+  preserveHistorical: z.boolean().optional().default(false),
+});
 
 /**
  * GET /api/db/daily-budgets?from=2024-01-01&to=2024-01-31
@@ -34,6 +56,21 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // SEC-001: Validate date range to prevent DoS
+    const daysDiff = Math.ceil((toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24));
+    if (daysDiff < 0) {
+      return NextResponse.json(
+        { error: "from date must be before to date" },
+        { status: 400 }
+      );
+    }
+    if (daysDiff > MAX_DATE_RANGE_DAYS) {
+      return NextResponse.json(
+        { error: `Date range cannot exceed ${MAX_DATE_RANGE_DAYS} days` },
+        { status: 400 }
+      );
+    }
+
     const budgets = await getUserDailyBudgets(userId, fromDate, toDate);
 
     return NextResponse.json({
@@ -48,7 +85,8 @@ export async function GET(request: NextRequest) {
     if (error instanceof Error && error.message === "Unauthorized") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    console.error("Error getting daily budgets:", error);
+    // Log sanitized error (avoid exposing stack traces)
+    console.error("Error getting daily budgets:", error instanceof Error ? error.message : "Unknown error");
     return NextResponse.json(
       { error: "Failed to get daily budgets" },
       { status: 500 }
@@ -67,37 +105,25 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const userId = await requireAuth();
-    const body = await request.json();
+    const rawBody = await request.json();
 
-    if (!Array.isArray(body.budgets)) {
+    // SEC-002 & SEC-003: Validate input with Zod schema
+    const parseResult = postBodySchema.safeParse(rawBody);
+    if (!parseResult.success) {
       return NextResponse.json(
-        { error: "budgets must be an array" },
+        { error: parseResult.error.issues[0]?.message || "Invalid request body" },
         { status: 400 }
       );
     }
 
-    const preserveHistorical = body.preserveHistorical ?? false;
+    const { budgets, preserveHistorical } = parseResult.data;
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
 
-    // Validate and save each budget
-    for (const budget of body.budgets) {
+    // Process validated budgets
+    for (const budget of budgets) {
       const { date, limit, spent, balance } = budget;
-
-      if (!date || limit === undefined || spent === undefined || balance === undefined) {
-        return NextResponse.json(
-          { error: "Each budget must have date, limit, spent, and balance" },
-          { status: 400 }
-        );
-      }
-
       const budgetDate = new Date(date);
-      if (isNaN(budgetDate.getTime())) {
-        return NextResponse.json(
-          { error: "Invalid date format" },
-          { status: 400 }
-        );
-      }
 
       // Normalize to start of day for comparison
       const normalizedBudgetDate = new Date(budgetDate);
@@ -126,7 +152,8 @@ export async function POST(request: NextRequest) {
     if (error instanceof Error && error.message === "Unauthorized") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-    console.error("Error saving daily budgets:", error);
+    // Log sanitized error (avoid exposing stack traces)
+    console.error("Error saving daily budgets:", error instanceof Error ? error.message : "Unknown error");
     return NextResponse.json(
       { error: "Failed to save daily budgets" },
       { status: 500 }

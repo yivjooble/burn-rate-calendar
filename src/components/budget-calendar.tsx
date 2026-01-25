@@ -3,7 +3,7 @@
 import { useCallback, useMemo } from "react";
 import { format, eachDayOfInterval, isSameDay, isToday } from "date-fns";
 import { uk } from "date-fns/locale";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Check, AlertTriangle, XCircle } from "lucide-react";
 import { DayBudget, Transaction } from "@/types";
 import { cn } from "@/lib/utils";
 import { useBudgetStore } from "@/store/budget-store";
@@ -118,6 +118,21 @@ export function BudgetCalendar({ dailyLimits, onDayClick, selectedMonth, onMonth
     if (percentage >= 80) return "bg-amber-300";      // soft amber
     if (percentage >= 50) return "bg-yellow-200";     // very soft yellow
     return "bg-teal-200";                              // soft teal instead of bright green
+  };
+
+  // A11Y-001: Get status text for screen readers
+  const getStatusText = (percentage: number): string => {
+    if (percentage >= 100) return "перевищено ліміт";
+    if (percentage >= 80) return "близько до ліміту";
+    if (percentage >= 50) return "помірні витрати";
+    return "в межах бюджету";
+  };
+
+  // A11Y-002: Get status icon for colorblind users
+  const getStatusIcon = (percentage: number) => {
+    if (percentage >= 100) return <XCircle className="w-2.5 h-2.5 text-red-600" aria-hidden="true" />;
+    if (percentage >= 80) return <AlertTriangle className="w-2.5 h-2.5 text-amber-600" aria-hidden="true" />;
+    return null; // No icon for normal status to reduce visual noise
   };
 
   // Get day info - either from current month dailyLimits or historical data
@@ -241,9 +256,18 @@ export function BudgetCalendar({ dailyLimits, onDayClick, selectedMonth, onMonth
           const hasSpending = dayInfo && dayInfo.spent > 0;
           const barHeight = dayInfo ? Math.min((dayInfo.spent / dayInfo.limit) * 100, 100) : 0;
 
+          // A11Y-001: Generate accessible label for screen readers
+          const dateLabel = format(day, "EEEE, d MMMM", { locale: uk });
+          const spentLabel = dayInfo && dayInfo.spent > 0
+            ? `витрачено ${(dayInfo.spent / 100).toLocaleString("uk-UA")} з ${(dayInfo.limit / 100).toLocaleString("uk-UA")} гривень`
+            : dayInfo ? `ліміт ${(dayInfo.limit / 100).toLocaleString("uk-UA")} гривень` : "";
+          const statusLabel = dayInfo ? getStatusText(dayInfo.percentage) : "";
+          const ariaLabel = `${dateLabel}${isTodayDay ? ", сьогодні" : ""}. ${spentLabel}${statusLabel ? `, ${statusLabel}` : ""}`;
+
           return (
             <button
               key={day.toISOString()}
+              aria-label={ariaLabel}
               onClick={() => {
                 if (dayInfo) {
                   // Create DayBudget object for historical months too
@@ -289,6 +313,8 @@ export function BudgetCalendar({ dailyLimits, onDayClick, selectedMonth, onMonth
                     {isTodayDay && (
                       <span className="w-1 h-1 md:w-1.5 md:h-1.5 rounded-full bg-primary animate-pulse" />
                     )}
+                    {/* A11Y-002: Status icon for colorblind users */}
+                    {dayInfo && hasSpending && getStatusIcon(dayInfo.percentage)}
                   </div>
 
                   {dayInfo && (
