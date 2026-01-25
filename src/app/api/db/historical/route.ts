@@ -141,8 +141,9 @@ export async function DELETE(request: Request) {
     if (error instanceof Error && error.message === "Unauthorized") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
+    console.error("DELETE /api/db/historical error:", error);
     return NextResponse.json(
-      { error: "Failed to delete data" },
+      { error: "Failed to delete data", details: error instanceof Error ? error.message : "Unknown error" },
       { status: 500 }
     );
   }

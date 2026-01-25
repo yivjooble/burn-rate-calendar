@@ -50,9 +50,11 @@ export async function deleteTransactionsAfter(timestamp: number): Promise<void> 
     method: "DELETE",
     credentials: "include",
   });
-  
+
   if (!response.ok) {
-    throw new Error("Failed to delete transactions");
+    const errorData = await response.json().catch(() => ({}));
+    console.error("Failed to delete transactions:", response.status, errorData);
+    throw new Error(errorData.details || errorData.error || "Failed to delete transactions");
   }
 }
 
@@ -110,9 +112,12 @@ export async function setHistoricalPeriod(fromTime: number, toTime: number): Pro
 export async function clearAllData(): Promise<void> {
   const response = await fetch(API_BASE, {
     method: "DELETE",
+    credentials: "include",
   });
-  
+
   if (!response.ok) {
-    throw new Error("Failed to clear data");
+    const errorData = await response.json().catch(() => ({}));
+    console.error("Failed to clear data:", response.status, errorData);
+    throw new Error(errorData.details || errorData.error || "Failed to clear data");
   }
 }
