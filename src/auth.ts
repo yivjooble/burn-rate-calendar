@@ -6,52 +6,28 @@ import { scryptSync, timingSafeEqual, randomBytes } from "crypto";
 import { verifyTotpCode, verifyBackupCode, decrypt, encrypt } from "@/lib/totp";
 
 /**
- * Hash password using scrypt (OWASP recommended).
- * Cost parameters follow OWASP guidelines for 2024.
+ * Hash password using scrypt with Node.js defaults.
+ * Default params: N=2^14, r=8, p=1 (secure and container-friendly)
  */
 function hashPassword(password: string, salt?: string): { hash: string; salt: string } {
   const passwordSalt = salt || randomBytes(16).toString("hex");
-  const hash = scryptSync(password, passwordSalt, 64, {
-    N: 2 ** 17,  // CPU/memory cost (OWASP 2024)
-    r: 8,        // Block size
-    p: 1,        // Parallelization
-  }).toString("hex");
+  const hash = scryptSync(password, passwordSalt, 64).toString("hex");
   return { hash, salt: passwordSalt };
 }
 
 /**
- * Hash password using legacy scrypt parameters (Node.js defaults).
- * Used for backwards compatibility with existing passwords.
- */
-function hashPasswordLegacy(password: string, salt: string): string {
-  return scryptSync(password, salt, 64).toString("hex");
-}
-
-/**
  * Verify password against stored hash using constant-time comparison.
- * Supports both new OWASP 2024 parameters and legacy defaults for backwards compatibility.
  */
 function verifyPassword(password: string, storedHash: string, salt: string): boolean {
+  const { hash } = hashPassword(password, salt);
   const storedBuffer = Buffer.from(storedHash, "hex");
+  const hashBuffer = Buffer.from(hash, "hex");
 
-  // Try new OWASP 2024 parameters first
-  const { hash: newHash } = hashPassword(password, salt);
-  const newHashBuffer = Buffer.from(newHash, "hex");
-
-  if (storedBuffer.length === newHashBuffer.length && timingSafeEqual(storedBuffer, newHashBuffer)) {
-    return true;
+  if (storedBuffer.length !== hashBuffer.length) {
+    return false;
   }
 
-  // Fallback: try legacy parameters (for existing passwords)
-  const legacyHash = hashPasswordLegacy(password, salt);
-  const legacyHashBuffer = Buffer.from(legacyHash, "hex");
-
-  if (storedBuffer.length === legacyHashBuffer.length && timingSafeEqual(storedBuffer, legacyHashBuffer)) {
-    // Password verified with legacy params - consider upgrading hash in production
-    return true;
-  }
-
-  return false;
+  return timingSafeEqual(storedBuffer, hashBuffer);
 }
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
