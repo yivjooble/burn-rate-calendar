@@ -88,8 +88,8 @@ export function verifyTotpCode(secret: string, code: string): boolean {
     secret: OTPAuth.Secret.fromBase32(secret),
   });
 
-  // Allow 1 period of drift in each direction
-  const delta = totp.validate({ token: code, window: 1 });
+  // Allow 2 periods of drift in each direction (±60 seconds)
+  const delta = totp.validate({ token: code, window: 2 });
 
   return delta !== null;
 }

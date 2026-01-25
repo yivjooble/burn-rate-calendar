@@ -20,18 +20,38 @@ function hashPassword(password: string, salt?: string): { hash: string; salt: st
 }
 
 /**
+ * Hash password using legacy scrypt parameters (Node.js defaults).
+ * Used for backwards compatibility with existing passwords.
+ */
+function hashPasswordLegacy(password: string, salt: string): string {
+  return scryptSync(password, salt, 64).toString("hex");
+}
+
+/**
  * Verify password against stored hash using constant-time comparison.
+ * Supports both new OWASP 2024 parameters and legacy defaults for backwards compatibility.
  */
 function verifyPassword(password: string, storedHash: string, salt: string): boolean {
-  const { hash } = hashPassword(password, salt);
   const storedBuffer = Buffer.from(storedHash, "hex");
-  const hashBuffer = Buffer.from(hash, "hex");
 
-  if (storedBuffer.length !== hashBuffer.length) {
-    return false;
+  // Try new OWASP 2024 parameters first
+  const { hash: newHash } = hashPassword(password, salt);
+  const newHashBuffer = Buffer.from(newHash, "hex");
+
+  if (storedBuffer.length === newHashBuffer.length && timingSafeEqual(storedBuffer, newHashBuffer)) {
+    return true;
   }
 
-  return timingSafeEqual(storedBuffer, hashBuffer);
+  // Fallback: try legacy parameters (for existing passwords)
+  const legacyHash = hashPasswordLegacy(password, salt);
+  const legacyHashBuffer = Buffer.from(legacyHash, "hex");
+
+  if (storedBuffer.length === legacyHashBuffer.length && timingSafeEqual(storedBuffer, legacyHashBuffer)) {
+    // Password verified with legacy params - consider upgrading hash in production
+    return true;
+  }
+
+  return false;
 }
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
