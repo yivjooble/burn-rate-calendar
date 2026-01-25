@@ -65,6 +65,7 @@ export default function Home() {
   const [hasMonoToken, setHasMonoToken] = useState(false);
   const [selectedFinancialMonth, setSelectedFinancialMonth] = useState<Date>(() => new Date());
   const [displayedBudget, setDisplayedBudget] = useState<typeof monthBudget>(null);
+  const [isMonthLoading, setIsMonthLoading] = useState(false);
   const backgroundSyncRef = useRef<NodeJS.Timeout | null>(null);
 
   const { initFromDb, dbInitialized } = useBudgetStore();
@@ -334,23 +335,28 @@ export default function Home() {
       // For current month, use the live calculated budget
       setDisplayedBudget(monthBudget);
     } else {
-      // For historical months, calculate from stored data
-      const monthStart = getFinancialMonthStart(month, financialDayStart);
-      const monthEnd = getFinancialMonthEnd(month, financialDayStart);
+      // For historical months, show loading and calculate from stored data
+      setIsMonthLoading(true);
+      try {
+        const monthStart = getFinancialMonthStart(month, financialDayStart);
+        const monthEnd = getFinancialMonthEnd(month, financialDayStart);
 
-      // Fetch stored daily budgets for this month
-      const storedBudgets = await fetchStoredDailyBudgets(monthStart, monthEnd);
+        // Fetch stored daily budgets for this month
+        const storedBudgets = await fetchStoredDailyBudgets(monthStart, monthEnd);
 
-      // Calculate historical summary
-      const historicalBudget = calculateHistoricalMonthSummary({
-        transactions,
-        excludedTransactionIds,
-        monthStart,
-        monthEnd,
-        storedBudgets,
-      });
+        // Calculate historical summary
+        const historicalBudget = calculateHistoricalMonthSummary({
+          transactions,
+          excludedTransactionIds,
+          monthStart,
+          monthEnd,
+          storedBudgets,
+        });
 
-      setDisplayedBudget(historicalBudget);
+        setDisplayedBudget(historicalBudget);
+      } finally {
+        setIsMonthLoading(false);
+      }
     }
   }, [settings.financialMonthStart, monthBudget, transactions, excludedTransactionIds]);
 
@@ -608,7 +614,15 @@ export default function Home() {
 
               {(displayedBudget || monthBudget) && (
                 <>
-                  <BudgetSummary budget={displayedBudget || monthBudget!} />
+                  {isMonthLoading ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {[1, 2, 3, 4].map((i) => (
+                        <div key={i} className="h-16 rounded-lg bg-muted/50 animate-pulse" />
+                      ))}
+                    </div>
+                  ) : (
+                    <BudgetSummary budget={displayedBudget || monthBudget!} />
+                  )}
                   <BudgetCalendar
                     dailyLimits={(displayedBudget || monthBudget!).dailyLimits}
                     onDayClick={setSelectedDay}
