@@ -5,6 +5,7 @@ import { eachDayOfInterval, format, differenceInDays } from "date-fns";
 interface HistoricalBudgetParams {
   transactions: Transaction[];
   excludedTransactionIds: string[];
+  includedTransactionIds?: string[];
   monthStart: Date;
   monthEnd: Date;
   storedBudgets?: StoredDailyBudget[];
@@ -16,6 +17,7 @@ interface HistoricalBudgetParams {
 export function calculateHistoricalMonthSummary({
   transactions,
   excludedTransactionIds,
+  includedTransactionIds = [],
   monthStart,
   monthEnd,
   storedBudgets = [],
@@ -35,7 +37,7 @@ export function calculateHistoricalMonthSummary({
     (tx) =>
       tx.time >= monthStartTs &&
       tx.time <= monthEndTs &&
-      isExpense(tx, transactions) &&
+      isExpense(tx, transactions, includedTransactionIds) &&
       !excludedSet.has(tx.id)
   );
 

@@ -30,7 +30,8 @@ import { uk } from "date-fns/locale";
 import { isExpense } from "@/lib/monobank";
 import { useBudgetStore } from "@/store/budget-store";
 import { cn } from "@/lib/utils";
-import { getMccCategory, getCategoryByKey, getAllCategories, MCC_CATEGORIES, getCategoryFromDescription } from "@/lib/mcc-categories";
+import { getCategoryByKey, getAllCategories } from "@/lib/mcc-categories";
+import { getTransactionCategoryKey } from "@/lib/category-utils";
 
 // Helper functions for financial month calculations
 function getFinancialMonthStart(date: Date, financialDayStart: number): Date {
@@ -93,20 +94,6 @@ interface DayCategoryData {
   amount: number;
 }
 
-// Helper to get transaction category (custom > description > MCC)
-function getTransactionCategory(tx: Transaction, transactionCategories: Record<string, string>): string {
-  // 1. Check if manually assigned
-  if (transactionCategories[tx.id]) {
-    return transactionCategories[tx.id];
-  }
-  // 2. Check description-based category
-  const descCategory = getCategoryFromDescription(tx.description);
-  if (descCategory) {
-    return descCategory;
-  }
-  // 3. Fall back to MCC
-  return getMccCategory(tx.mcc);
-}
 
 export function CategoriesPage() {
   const { excludedTransactionIds, settings, transactionCategories, customCategories, setTransactionCategory, addCustomCategory, isLoading: globalLoading, setLoading: setGlobalLoading } = useBudgetStore();
@@ -232,7 +219,7 @@ export function CategoriesPage() {
                txDate >= dateRange.from && txDate <= dateRange.to;
       })
       .forEach(tx => {
-        const categoryKey = getTransactionCategory(tx, transactionCategories);
+        const categoryKey = getTransactionCategoryKey(tx, transactionCategories);
         if (categories[categoryKey]) {
           categories[categoryKey].total += Math.abs(tx.amount);
           categories[categoryKey].count += 1;
@@ -293,7 +280,7 @@ export function CategoriesPage() {
         .filter(tx => 
           isExpense(tx, historicalTransactions) && 
           !excludedTransactionIds.includes(tx.id) &&
-          getTransactionCategory(tx, transactionCategories) === selectedCategory
+          getTransactionCategoryKey(tx, transactionCategories) === selectedCategory
         )
         .reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
 
@@ -316,7 +303,7 @@ export function CategoriesPage() {
         const txDate = new Date(tx.time * 1000);
         // Show all transactions including excluded ones (they will be displayed as strikethrough)
         return isExpense(tx, historicalTransactions) && 
-               getTransactionCategory(tx, transactionCategories) === selectedCategory &&
+               getTransactionCategoryKey(tx, transactionCategories) === selectedCategory &&
                txDate >= dateRange.from && txDate <= dateRange.to;
       });
     

@@ -18,9 +18,10 @@ interface SpendingPattern {
 }
 
 export function analyzeSpendingPattern(
-  transactions: Transaction[]
+  transactions: Transaction[],
+  includedTransactionIds?: string[]
 ): SpendingPattern {
-  const expenses = transactions.filter((tx) => isExpense(tx, transactions));
+  const expenses = transactions.filter((tx) => isExpense(tx, transactions, includedTransactionIds));
   const grouped = groupTransactionsByDay(expenses);
 
   let weekdayTotal = 0;
@@ -75,7 +76,8 @@ export async function distributeBudget(
   userId?: string,
   useAI: boolean = true,
   financialMonthStartDay: number = 1,
-  skipHistoricalLimits: boolean = false // When true, don't use saved historical limits (for budget recalculation)
+  skipHistoricalLimits: boolean = false, // When true, don't use saved historical limits (for budget recalculation)
+  includedTransactionIds: string[] = [] // Override auto-exclusion for these transactions
 ): Promise<MonthBudget> {
   // Use financial month boundaries instead of calendar month
   const monthStart = financialMonthStartDay === 1
@@ -86,12 +88,12 @@ export async function distributeBudget(
     : getFinancialMonthEnd(currentDate, financialMonthStartDay);
   const allDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
 
-  const pattern = analyzeSpendingPattern(pastTransactions);
+  const pattern = analyzeSpendingPattern(pastTransactions, includedTransactionIds);
   const currentGrouped = groupTransactionsByDay(currentMonthTransactions);
 
   let totalSpent = 0;
   currentMonthTransactions
-    .filter((tx) => isExpense(tx, currentMonthTransactions) && !excludedTransactionIds.includes(tx.id))
+    .filter((tx) => isExpense(tx, currentMonthTransactions, includedTransactionIds) && !excludedTransactionIds.includes(tx.id))
     .forEach((tx) => {
       totalSpent += Math.abs(tx.amount);
     });
@@ -146,7 +148,7 @@ export async function distributeBudget(
           const dateKey = format(date, "yyyy-MM-dd");
           const dayTransactions = currentGrouped.get(dateKey) || [];
           const daySpent = dayTransactions
-            .filter((tx) => isExpense(tx, currentMonthTransactions) && !excludedTransactionIds.includes(tx.id))
+            .filter((tx) => isExpense(tx, currentMonthTransactions, includedTransactionIds) && !excludedTransactionIds.includes(tx.id))
             .reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
           
           return {
@@ -190,7 +192,7 @@ export async function distributeBudget(
     const dateKey = format(day, "yyyy-MM-dd");
     const dayTransactions = currentGrouped.get(dateKey) || [];
     const daySpent = dayTransactions
-      .filter((tx) => isExpense(tx, currentMonthTransactions) && !excludedTransactionIds.includes(tx.id))
+      .filter((tx) => isExpense(tx, currentMonthTransactions, includedTransactionIds) && !excludedTransactionIds.includes(tx.id))
       .reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
 
     let limit: number;
@@ -295,10 +297,11 @@ function generateRecommendation(
 
 export function predictInflation(
   transactions: Transaction[],
-  currentBalance: number
+  currentBalance: number,
+  includedTransactionIds?: string[]
 ): InflationPrediction {
-  const expenses = transactions.filter((tx) => isExpense(tx, transactions));
-  const incomes = transactions.filter((tx) => isIncome(tx, transactions));
+  const expenses = transactions.filter((tx) => isExpense(tx, transactions, includedTransactionIds));
+  const incomes = transactions.filter((tx) => isIncome(tx, transactions, includedTransactionIds));
 
   const totalExpenses = expenses.reduce((sum, tx) => sum + Math.abs(tx.amount), 0);
   const totalIncome = incomes.reduce((sum, tx) => sum + tx.amount, 0);

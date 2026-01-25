@@ -42,6 +42,7 @@ export async function POST(request: Request) {
     // Convert from frontend format to DB format
     const dbTransactions: Omit<DbUserTransaction, "user_id">[] = transactions.map(tx => ({
       id: tx.id,
+      account_id: tx.accountId || null,
       time: tx.time,
       description: tx.description,
       mcc: tx.mcc,

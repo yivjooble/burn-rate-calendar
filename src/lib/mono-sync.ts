@@ -83,8 +83,8 @@ async function fetchMonthTransactions(
   }
 
   const data = await response.json();
-  // Add currencyCode to each transaction
-  return data.map((tx: Transaction) => ({ ...tx, currencyCode }));
+  // Add currencyCode and accountId to each transaction
+  return data.map((tx: Transaction) => ({ ...tx, currencyCode, accountId }));
 }
 
 export async function loadHistoricalData(
@@ -248,13 +248,14 @@ export async function syncTransactions(
 
 export async function getStoredTransactions(
   fromTimestamp?: number,
-  toTimestamp?: number
+  toTimestamp?: number,
+  accountId?: string
 ): Promise<Transaction[]> {
-  return getTransactions(fromTimestamp, toTimestamp);
+  return getTransactions(fromTimestamp, toTimestamp, accountId);
 }
 
-export async function getAllStoredTransactions(): Promise<Transaction[]> {
-  return getAllTransactions();
+export async function getAllStoredTransactions(accountId?: string): Promise<Transaction[]> {
+  return getAllTransactions(accountId);
 }
 
 export async function isHistoricalDataAvailable(): Promise<boolean> {

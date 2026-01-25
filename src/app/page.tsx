@@ -49,6 +49,7 @@ export default function Home() {
     transactions,
     setTransactions,
     excludedTransactionIds,
+    includedTransactionIds,
     isLoading,
     isHistoricalLoading,
     setLoading,
@@ -166,7 +167,8 @@ export default function Home() {
       const rates = await fetchCurrencyRates();
       setCurrencyRates(rates);
 
-      const storedTransactions = await getAllStoredTransactions();
+      // Filter transactions by current accountId
+      const storedTransactions = await getAllStoredTransactions(settings.accountId);
       if (storedTransactions.length > 0) {
         setTransactions(storedTransactions);
 
@@ -198,7 +200,9 @@ export default function Home() {
           budgetAmount, // currentBalance = card balance in UAH
           session?.user?.id,
           settings.useAIBudget ?? true, // Use AI setting from user preferences
-          financialDayStart
+          financialDayStart,
+          false, // skipHistoricalLimits
+          includedTransactionIds // Override auto-exclusion
         );
         setMonthBudget(budget);
 
@@ -213,7 +217,7 @@ export default function Home() {
     } catch {
       // Silently fail - loading from storage is not critical
     }
-  }, [settings.accountBalance, settings.accountCurrency, settings.financialMonthStart, excludedTransactionIds, setTransactions, setMonthBudget, saveDailyBudgets, session?.user?.id]);
+  }, [settings.accountId, settings.accountBalance, settings.accountCurrency, settings.financialMonthStart, excludedTransactionIds, includedTransactionIds, setTransactions, setMonthBudget, saveDailyBudgets, session?.user?.id, settings.useAIBudget]);
 
   // Refresh only today's transactions and account balance (quick update)
   const refreshToday = useCallback(async () => {
@@ -258,6 +262,9 @@ export default function Home() {
     setError,
   ]);
 
+  // Track accountId changes to reload data when account is switched
+  const prevAccountIdRef = useRef<string | undefined>(undefined);
+
   // Check for historical data and load from storage on mount
   useEffect(() => {
     if (!isHydrated) return;
@@ -265,7 +272,7 @@ export default function Home() {
     const initData = async () => {
       const hasData = await isHistoricalDataAvailable();
       setHasHistoricalData(hasData);
-      
+
       if (hasData) {
         // Load from SQLite DB
         await loadFromStorage();
@@ -275,6 +282,34 @@ export default function Home() {
 
     initData();
   }, [isHydrated, loadFromStorage]);
+
+  // Reload data when accountId changes (account switch in settings)
+  useEffect(() => {
+    if (!isHydrated || !hasHistoricalData) return;
+
+    const accountChanged = prevAccountIdRef.current !== undefined &&
+      prevAccountIdRef.current !== settings.accountId;
+
+    prevAccountIdRef.current = settings.accountId;
+
+    if (accountChanged && settings.accountId && hasMonoToken) {
+      // Account was switched - refresh balance and reload transactions
+      const reloadForNewAccount = async () => {
+        setLoading(true);
+        try {
+          // Refresh account balance for the new account
+          await refreshAccountBalance();
+          // Reload transactions filtered by new accountId
+          await loadFromStorage();
+        } catch (err) {
+          console.error("Failed to reload data for new account:", err);
+        } finally {
+          setLoading(false);
+        }
+      };
+      reloadForNewAccount();
+    }
+  }, [isHydrated, hasHistoricalData, hasMonoToken, settings.accountId, refreshAccountBalance, loadFromStorage, setLoading]);
 
   // Background sync every 5 minutes - refresh balance and transactions
   useEffect(() => {
@@ -316,7 +351,7 @@ export default function Home() {
       if (!monthBudget) {
         const budgetAmount = settings.accountBalance || 0;
         const financialDayStart = settings.financialMonthStart || 1;
-        const budget = await distributeBudget(budgetAmount, new Date(), transactions, [], excludedTransactionIds, budgetAmount, session?.user?.id, settings.useAIBudget ?? true, financialDayStart);
+        const budget = await distributeBudget(budgetAmount, new Date(), transactions, [], excludedTransactionIds, budgetAmount, session?.user?.id, settings.useAIBudget ?? true, financialDayStart, false, includedTransactionIds);
         setMonthBudget(budget);
 
         // Save daily budgets to preserve historical limits
@@ -325,7 +360,7 @@ export default function Home() {
     };
 
     createInitialBudget();
-  }, [isHydrated, settings.accountBalance, settings.financialMonthStart, monthBudget, excludedTransactionIds, setMonthBudget, saveDailyBudgets, session?.user?.id]);
+  }, [isHydrated, settings.accountBalance, settings.financialMonthStart, monthBudget, excludedTransactionIds, includedTransactionIds, setMonthBudget, saveDailyBudgets, session?.user?.id]);
 
   // Handle month change from calendar navigation
   const handleMonthChange = useCallback(async (month: Date) => {
@@ -351,6 +386,7 @@ export default function Home() {
         const historicalBudget = calculateHistoricalMonthSummary({
           transactions,
           excludedTransactionIds,
+          includedTransactionIds,
           monthStart,
           monthEnd,
           storedBudgets,
@@ -361,7 +397,7 @@ export default function Home() {
         setIsMonthLoading(false);
       }
     }
-  }, [settings.financialMonthStart, monthBudget, transactions, excludedTransactionIds]);
+  }, [settings.financialMonthStart, monthBudget, transactions, excludedTransactionIds, includedTransactionIds]);
 
   // Initialize selected month to current financial month when settings load
   useEffect(() => {
@@ -413,21 +449,23 @@ export default function Home() {
         session?.user?.id,
         settings.useAIBudget ?? true, // Use AI setting from user preferences
         financialDayStart,
-        balanceChanged // Skip historical limits when balance changed (force recalculation)
+        balanceChanged, // Skip historical limits when balance changed (force recalculation)
+        includedTransactionIds // Override auto-exclusion
       );
       setMonthBudget(budget);
 
       // Save daily budgets - force update all days when balance changed
       await saveDailyBudgets(budget, balanceChanged);
     }
-  }, [transactions, settings.accountBalance, settings.accountCurrency, settings.financialMonthStart, currencyRates, excludedTransactionIds, setMonthBudget, saveDailyBudgets, session?.user?.id, settings.useAIBudget]);
+  }, [transactions, settings.accountBalance, settings.accountCurrency, settings.financialMonthStart, currencyRates, excludedTransactionIds, includedTransactionIds, setMonthBudget, saveDailyBudgets, session?.user?.id, settings.useAIBudget]);
 
   useEffect(() => {
     if (isHydrated && transactions.length > 0) {
       recalculateBudget();
     }
     // Include settings.accountBalance to trigger recalculation when budget is changed manually
-  }, [excludedTransactionIds, isHydrated, transactions.length, recalculateBudget, settings.accountBalance]);
+    // Include includedTransactionIds to trigger recalculation when auto-excluded transactions are manually included
+  }, [excludedTransactionIds, includedTransactionIds, isHydrated, transactions.length, recalculateBudget, settings.accountBalance]);
 
   if (!isHydrated) {
     return (

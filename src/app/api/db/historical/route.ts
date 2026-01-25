@@ -15,6 +15,7 @@ import { historicalTransactionsSchema, historicalMetaSchema, validateInput, Vali
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const type = searchParams.get("type") || "transactions";
+  const accountId = searchParams.get("accountId") || undefined;
 
   try {
     const userId = await requireAuth();
@@ -33,7 +34,7 @@ export async function GET(request: Request) {
       });
     }
 
-    const transactions = await getAllUserTransactions(userId);
+    const transactions = await getAllUserTransactions(userId, accountId);
     // Convert to frontend format
     const formatted = transactions.map(tx => ({
       id: tx.id,
@@ -45,6 +46,7 @@ export async function GET(request: Request) {
       cashbackAmount: tx.cashback_amount,
       currencyCode: tx.currency_code,
       comment: tx.comment,
+      accountId: tx.account_id,
     }));
     return NextResponse.json(formatted);
   } catch (error) {
@@ -91,6 +93,7 @@ export async function POST(request: Request) {
     // Convert from frontend format to DB format
     const dbTransactions: Omit<DbUserTransaction, "user_id">[] = validatedTransactions.map((tx) => ({
       id: tx.id,
+      account_id: tx.accountId ?? null,
       time: tx.time,
       description: tx.description,
       mcc: tx.mcc,

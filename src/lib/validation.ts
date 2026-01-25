@@ -35,6 +35,7 @@ export const transactionSchema = z.object({
   cashbackAmount: z.number().int().optional().default(0),
   currencyCode: z.number().int().min(0).max(999).optional().default(980),
   comment: z.string().max(1000).nullable().optional(),
+  accountId: z.string().max(100).nullable().optional(),
 });
 
 export const saveTransactionsSchema = z.object({
@@ -54,6 +55,17 @@ export const excludedTransactionSchema = z.object({
 });
 
 export type ExcludedTransactionInput = z.infer<typeof excludedTransactionSchema>;
+
+// =============================================================================
+// INCLUDED TRANSACTION VALIDATION (Override auto-exclusion)
+// =============================================================================
+
+export const includedTransactionSchema = z.object({
+  id: z.string().min(1).max(100),
+  action: z.enum(["add", "remove"]).optional(),
+});
+
+export type IncludedTransactionInput = z.infer<typeof includedTransactionSchema>;
 
 // =============================================================================
 // HISTORICAL DATA VALIDATION

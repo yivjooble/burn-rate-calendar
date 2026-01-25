@@ -15,6 +15,7 @@ interface BudgetState {
   inflationPrediction: InflationPrediction | null;
   transactions: Transaction[];
   excludedTransactionIds: string[];
+  includedTransactionIds: string[]; // Override auto-exclusion (internal transfers, ATM)
   customCategories: CustomCategory[];
   transactionCategories: Record<string, string>; // transactionId -> categoryId
   transactionComments: Record<string, string>; // transactionId -> comment
@@ -30,6 +31,8 @@ interface BudgetState {
   setTransactions: (transactions: Transaction[]) => void;
   excludeTransaction: (transactionId: string) => void;
   includeTransaction: (transactionId: string) => void;
+  includeAutoExcluded: (transactionId: string) => void; // Override auto-exclusion
+  removeIncludeOverride: (transactionId: string) => void; // Remove override
   addCustomCategory: (category: CustomCategory) => void;
   removeCustomCategory: (categoryId: string) => void;
   setTransactionCategory: (transactionId: string, categoryId: string | null) => void;
@@ -57,6 +60,7 @@ export const useBudgetStore = create<BudgetState>()(
       inflationPrediction: null,
       transactions: [],
       excludedTransactionIds: [],
+      includedTransactionIds: [],
       customCategories: [],
       transactionCategories: {},
       transactionComments: {},
@@ -131,6 +135,34 @@ export const useBudgetStore = create<BudgetState>()(
         }).catch(console.error);
       },
 
+      includeAutoExcluded: (transactionId) => {
+        set((state) => ({
+          includedTransactionIds: [...state.includedTransactionIds, transactionId],
+        }));
+        // Sync to DB
+        fetch("/api/db/included", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: transactionId, action: "add" }),
+          credentials: "include",
+        }).catch(console.error);
+      },
+
+      removeIncludeOverride: (transactionId) => {
+        set((state) => ({
+          includedTransactionIds: state.includedTransactionIds.filter(
+            (id) => id !== transactionId
+          ),
+        }));
+        // Sync to DB
+        fetch("/api/db/included", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: transactionId, action: "remove" }),
+          credentials: "include",
+        }).catch(console.error);
+      },
+
       addCustomCategory: (category) => {
         set((state) => ({
           customCategories: [...state.customCategories, category],
@@ -192,6 +224,7 @@ export const useBudgetStore = create<BudgetState>()(
           inflationPrediction: null,
           transactions: [],
           excludedTransactionIds: [],
+          includedTransactionIds: [],
           customCategories: [],
           transactionCategories: {},
           transactionComments: {},
@@ -204,10 +237,11 @@ export const useBudgetStore = create<BudgetState>()(
 
       initFromDb: async () => {
         try {
-          const [settingsRes, transactionsRes, excludedRes] = await Promise.all([
+          const [settingsRes, transactionsRes, excludedRes, includedRes] = await Promise.all([
             fetch("/api/db/settings", { credentials: "include" }),
             fetch("/api/db/transactions", { credentials: "include" }),
             fetch("/api/db/excluded", { credentials: "include" }),
+            fetch("/api/db/included", { credentials: "include" }),
           ]);
 
           if (settingsRes.ok) {
@@ -236,6 +270,13 @@ export const useBudgetStore = create<BudgetState>()(
             const excludedIds = await excludedRes.json();
             if (Array.isArray(excludedIds)) {
               set({ excludedTransactionIds: excludedIds });
+            }
+          }
+
+          if (includedRes.ok) {
+            const includedIds = await includedRes.json();
+            if (Array.isArray(includedIds)) {
+              set({ includedTransactionIds: includedIds });
             }
           }
 

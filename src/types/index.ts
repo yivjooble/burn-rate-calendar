@@ -8,6 +8,7 @@ export interface Transaction {
   cashbackAmount: number;
   comment?: string;
   currencyCode?: number;
+  accountId?: string; // Card/account ID this transaction belongs to
 }
 
 export const CURRENCY_SYMBOLS: Record<number, string> = {

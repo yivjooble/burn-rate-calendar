@@ -137,12 +137,17 @@ export function isCashWithdrawal(transaction: Transaction): boolean {
   );
 }
 
-export function isInternalTransfer(transaction: Transaction, allTransactions?: Transaction[]): boolean {
+export function isInternalTransfer(transaction: Transaction, allTransactions?: Transaction[], includedTransactionIds?: string[]): boolean {
+  // If this transaction is manually included, it's NOT an internal transfer for budget purposes
+  if (includedTransactionIds?.includes(transaction.id)) {
+    return false;
+  }
+
   const description = transaction.description.toLowerCase();
-  
+
   // Heuristic based on common Monobank descriptions for internal transfers between OWN accounts
   // Note: "переказ на картку" is NOT filtered - it could be a transfer to another person
-  const hasInternalKeywords = 
+  const hasInternalKeywords =
     description.includes("з білої картки") ||
     description.includes("на білу картку") ||
     description.includes("власні кошти") ||
@@ -153,7 +158,7 @@ export function isInternalTransfer(transaction: Transaction, allTransactions?: T
 
   // Filter out ONLY savings-related operations (накопичення, депозити, оренда банки)
   // NOT charity donations or transfers to other people
-  const isSavingsOperation = 
+  const isSavingsOperation =
     description.includes("накопичення") ||
     description.includes("депозит") ||
     description.includes("відкриття депозиту") ||
@@ -164,7 +169,7 @@ export function isInternalTransfer(transaction: Transaction, allTransactions?: T
     description.includes("поповнення «оренда»");
 
   if (isSavingsOperation) return true;
-  
+
   // ATM withdrawals are not expenses - they're just cash conversion
   if (isCashWithdrawal(transaction)) return true;
 
@@ -173,27 +178,79 @@ export function isInternalTransfer(transaction: Transaction, allTransactions?: T
   if (allTransactions) {
     const txDate = new Date(transaction.time * 1000).toDateString();
     const oppositeAmount = -transaction.amount;
-    
-    const hasMatch = allTransactions.some(other => 
-      other.id !== transaction.id && 
-      other.amount === oppositeAmount && 
+
+    const hasMatch = allTransactions.some(other =>
+      other.id !== transaction.id &&
+      other.amount === oppositeAmount &&
       new Date(other.time * 1000).toDateString() === txDate
     );
-    
+
     if (hasMatch) return true;
   }
 
   return false;
 }
 
-export function isExpense(transaction: Transaction, allTransactions?: Transaction[]): boolean {
+/**
+ * Check if a transaction would be auto-excluded (internal transfer, ATM withdrawal)
+ * This is used to determine if a transaction can be manually included
+ */
+export function isAutoExcluded(transaction: Transaction, allTransactions?: Transaction[]): boolean {
   if (transaction.amount >= 0) return false;
-  if (isInternalTransfer(transaction, allTransactions)) return false;
+
+  const description = transaction.description.toLowerCase();
+
+  // Check internal transfer keywords
+  const hasInternalKeywords =
+    description.includes("з білої картки") ||
+    description.includes("на білу картку") ||
+    description.includes("власні кошти") ||
+    description.includes("між картками") ||
+    description.includes("f2f");
+
+  if (hasInternalKeywords) return true;
+
+  // Check savings operations
+  const isSavingsOperation =
+    description.includes("накопичення") ||
+    description.includes("депозит") ||
+    description.includes("відкриття депозиту") ||
+    description.includes("поповнення депозиту") ||
+    description.includes("часткове зняття банки") ||
+    description.includes("зняття банки") ||
+    description.includes("«оренда»") ||
+    description.includes("поповнення «оренда»");
+
+  if (isSavingsOperation) return true;
+
+  // ATM withdrawals
+  if (isCashWithdrawal(transaction)) return true;
+
+  // Exact amount match logic
+  if (allTransactions) {
+    const txDate = new Date(transaction.time * 1000).toDateString();
+    const oppositeAmount = -transaction.amount;
+
+    const hasMatch = allTransactions.some(other =>
+      other.id !== transaction.id &&
+      other.amount === oppositeAmount &&
+      new Date(other.time * 1000).toDateString() === txDate
+    );
+
+    if (hasMatch) return true;
+  }
+
+  return false;
+}
+
+export function isExpense(transaction: Transaction, allTransactions?: Transaction[], includedTransactionIds?: string[]): boolean {
+  if (transaction.amount >= 0) return false;
+  if (isInternalTransfer(transaction, allTransactions, includedTransactionIds)) return false;
   return true;
 }
 
-export function isIncome(transaction: Transaction, allTransactions?: Transaction[]): boolean {
+export function isIncome(transaction: Transaction, allTransactions?: Transaction[], includedTransactionIds?: string[]): boolean {
   if (transaction.amount <= 0) return false;
-  if (isInternalTransfer(transaction, allTransactions)) return false;
+  if (isInternalTransfer(transaction, allTransactions, includedTransactionIds)) return false;
   return true;
 }

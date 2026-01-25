@@ -35,6 +35,7 @@ model User {
   settings             UserSetting[]
   transactions         UserTransaction[]
   excludedTransactions UserExcludedTransaction[]
+  includedTransactions UserIncludedTransaction[]
   dailyBudgets         UserDailyBudget[]
 
   @@map("users")
@@ -55,6 +56,7 @@ model UserTransaction {
   id            String  @id
   odataId       String? @map("odata_id") // Original transaction ID from Monobank
   userId        String  @map("user_id")
+  accountId     String? @map("account_id") // Monobank account ID for multi-account filtering
   time          Int
   description   String
   mcc           Int
@@ -68,6 +70,7 @@ model UserTransaction {
 
   @@unique([odataId, userId])
   @@index([userId, time])
+  @@index([userId, accountId])
   @@map("user_transactions")
 }
 
@@ -80,6 +83,18 @@ model UserExcludedTransaction {
 
   @@id([id, userId])
   @@map("user_excluded_transactions")
+}
+
+// Transactions that are manually INCLUDED (override auto-exclusion like internal transfers, ATM withdrawals)
+model UserIncludedTransaction {
+  id      String
+  odataId String? @map("odata_id") // Original transaction ID from Monobank
+  userId  String  @map("user_id")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([id, userId])
+  @@map("user_included_transactions")
 }
 
 model UserDailyBudget {

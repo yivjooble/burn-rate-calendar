@@ -491,6 +491,7 @@ export async function deleteUserSetting(
 export interface DbUserTransaction {
   id: string;
   user_id: string;
+  account_id: string | null;
   time: number;
   description: string;
   mcc: number;
@@ -522,6 +523,7 @@ export async function saveUserTransactions(
       prisma.userTransaction.upsert({
         where: { id: tx.id },
         update: {
+          accountId: tx.account_id,
           time: tx.time,
           description: tx.description,
           mcc: tx.mcc,
@@ -534,6 +536,7 @@ export async function saveUserTransactions(
         create: {
           id: tx.id,
           userId,
+          accountId: tx.account_id,
           time: tx.time,
           description: tx.description,
           mcc: tx.mcc,
@@ -551,12 +554,18 @@ export async function saveUserTransactions(
 export async function getUserTransactions(
   userId: string,
   fromTime?: number,
-  toTime?: number
+  toTime?: number,
+  accountId?: string
 ): Promise<DbUserTransaction[]> {
   const where: {
     userId: string;
+    accountId?: string;
     time?: { gte?: number; lte?: number };
   } = { userId };
+
+  if (accountId) {
+    where.accountId = accountId;
+  }
 
   if (fromTime !== undefined || toTime !== undefined) {
     where.time = {};
@@ -572,6 +581,7 @@ export async function getUserTransactions(
   return rows.map((r) => ({
     id: r.id,
     user_id: r.userId,
+    account_id: r.accountId,
     time: r.time,
     description: r.description,
     mcc: r.mcc,
@@ -584,9 +594,10 @@ export async function getUserTransactions(
 }
 
 export async function getAllUserTransactions(
-  userId: string
+  userId: string,
+  accountId?: string
 ): Promise<DbUserTransaction[]> {
-  return getUserTransactions(userId);
+  return getUserTransactions(userId, undefined, undefined, accountId);
 }
 
 export async function deleteUserTransactionsAfter(
@@ -635,6 +646,45 @@ export async function clearUserExcludedTransactions(
   userId: string
 ): Promise<void> {
   await prisma.userExcludedTransaction.deleteMany({ where: { userId } });
+}
+
+// =============================================================================
+// PER-USER INCLUDED TRANSACTIONS (Override auto-exclusion)
+// =============================================================================
+
+export async function getUserIncludedTransactionIds(
+  userId: string
+): Promise<string[]> {
+  const rows = await prisma.userIncludedTransaction.findMany({
+    where: { userId },
+  });
+  return rows.map((r) => r.id);
+}
+
+export async function addUserIncludedTransaction(
+  userId: string,
+  transactionId: string
+): Promise<void> {
+  await prisma.userIncludedTransaction.upsert({
+    where: { id_userId: { id: transactionId, userId } },
+    update: {},
+    create: { id: transactionId, userId },
+  });
+}
+
+export async function removeUserIncludedTransaction(
+  userId: string,
+  transactionId: string
+): Promise<void> {
+  await prisma.userIncludedTransaction.deleteMany({
+    where: { id: transactionId, userId },
+  });
+}
+
+export async function clearUserIncludedTransactions(
+  userId: string
+): Promise<void> {
+  await prisma.userIncludedTransaction.deleteMany({ where: { userId } });
 }
 
 // =============================================================================

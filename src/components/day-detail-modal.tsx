@@ -11,9 +11,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { X, TrendingDown, TrendingUp, Banknote, EyeOff, Eye, Tags, ChevronDown, Plus } from "lucide-react";
-import { isCashWithdrawal, isInternalTransfer } from "@/lib/monobank";
+import { isCashWithdrawal, isInternalTransfer, isAutoExcluded } from "@/lib/monobank";
 import { useBudgetStore } from "@/store/budget-store";
-import { getAllCategories, getCategoryFromDescription, getMccCategory } from "@/lib/mcc-categories";
+import { getAllCategories } from "@/lib/mcc-categories";
+import { getTransactionCategory } from "@/lib/category-utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,10 +36,13 @@ interface DayDetailModalProps {
 }
 
 export function DayDetailModal({ day, onClose, onExcludeTransaction }: DayDetailModalProps) {
-  const { 
-    excludedTransactionIds, 
-    excludeTransaction, 
+  const {
+    excludedTransactionIds,
+    excludeTransaction,
     includeTransaction,
+    includedTransactionIds,
+    includeAutoExcluded,
+    removeIncludeOverride,
     transactionCategories,
     setTransactionCategory,
     transactionComments,
@@ -120,42 +124,40 @@ export function DayDetailModal({ day, onClose, onExcludeTransaction }: DayDetail
     ...customCategories.map(c => ({ key: c.id, category: { name: c.name, icon: c.icon, color: c.color } })),
   ];
   
-  // Get current category for a transaction
-  const getTransactionCategoryInfo = (txId: string, txDescription: string, txMcc: number) => {
-    const customCatId = transactionCategories[txId];
-    if (customCatId) {
-      const cat = allCategories.find(c => c.key === customCatId);
-      return cat ? { key: customCatId, ...cat.category, isCustom: true } : null;
-    }
-    const descCat = getCategoryFromDescription(txDescription);
-    if (descCat) {
-      const cat = allCategories.find(c => c.key === descCat);
-      return cat ? { key: descCat, ...cat.category, isCustom: false } : null;
-    }
-    const mccCat = getMccCategory(txMcc);
-    const cat = allCategories.find(c => c.key === mccCat);
-    return cat ? { key: mccCat, ...cat.category, isCustom: false } : null;
-  };
-  
   // Separate transactions into expenses, cash withdrawals, and internal transfers
   // Also filter out manually excluded transactions
-  const expenses = day.transactions.filter(tx => 
-    tx.amount < 0 && 
-    !isCashWithdrawal(tx) && 
-    !isInternalTransfer(tx, day.transactions) &&
-    !excludedTransactionIds.includes(tx.id)
+  // Note: transactions manually included (override auto-exclusion) should appear in expenses
+  const expenses = day.transactions.filter(tx =>
+    tx.amount < 0 &&
+    !excludedTransactionIds.includes(tx.id) &&
+    (
+      // Normal expenses (not auto-excluded)
+      (!isCashWithdrawal(tx) && !isInternalTransfer(tx, day.transactions, includedTransactionIds)) ||
+      // OR manually included auto-excluded transactions
+      includedTransactionIds.includes(tx.id)
+    )
   );
-  const cashWithdrawals = day.transactions.filter(tx => 
-    tx.amount < 0 && isCashWithdrawal(tx)
+
+  // Cash withdrawals that are NOT manually included
+  const cashWithdrawals = day.transactions.filter(tx =>
+    tx.amount < 0 &&
+    isCashWithdrawal(tx) &&
+    !includedTransactionIds.includes(tx.id)
   );
-  const internalTransfers = day.transactions.filter(tx => 
-    isInternalTransfer(tx, day.transactions) && !isCashWithdrawal(tx)
+
+  // Internal transfers that are NOT manually included
+  const internalTransfers = day.transactions.filter(tx =>
+    isAutoExcluded(tx, day.transactions) &&
+    !isCashWithdrawal(tx) &&
+    !includedTransactionIds.includes(tx.id)
   );
+
   const manuallyExcluded = day.transactions.filter(tx =>
     excludedTransactionIds.includes(tx.id)
   );
-  const incomes = day.transactions.filter(tx => 
-    tx.amount > 0 && !isInternalTransfer(tx, day.transactions)
+
+  const incomes = day.transactions.filter(tx =>
+    tx.amount > 0 && !isInternalTransfer(tx, day.transactions, includedTransactionIds)
   );
 
   const handleExclude = (transactionId: string) => {
@@ -165,6 +167,18 @@ export function DayDetailModal({ day, onClose, onExcludeTransaction }: DayDetail
 
   const handleInclude = (transactionId: string) => {
     includeTransaction(transactionId);
+    onExcludeTransaction?.(transactionId);
+  };
+
+  // Include an auto-excluded transaction (internal transfer, ATM withdrawal)
+  const handleIncludeAutoExcluded = (transactionId: string) => {
+    includeAutoExcluded(transactionId);
+    onExcludeTransaction?.(transactionId);
+  };
+
+  // Remove the include override for an auto-excluded transaction
+  const handleRemoveIncludeOverride = (transactionId: string) => {
+    removeIncludeOverride(transactionId);
     onExcludeTransaction?.(transactionId);
   };
 
@@ -258,7 +272,7 @@ export function DayDetailModal({ day, onClose, onExcludeTransaction }: DayDetail
                 </h4>
                 <div className="space-y-1">
                   {expenses.map((tx) => {
-                    const catInfo = getTransactionCategoryInfo(tx.id, tx.description, tx.mcc);
+                    const catInfo = getTransactionCategory(tx, transactionCategories, customCategories);
                     return (
                       <div
                         key={tx.id}
@@ -370,15 +384,29 @@ export function DayDetailModal({ day, onClose, onExcludeTransaction }: DayDetail
                             <TrendingDown className="w-3 h-3" />
                             {(Math.abs(tx.amount) / 100).toFixed(2)} {getCurrencySymbol(tx.currencyCode)}
                           </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
-                            onClick={() => handleExclude(tx.id)}
-                            title="Не враховувати"
-                          >
-                            <EyeOff className="w-4 h-4" />
-                          </Button>
+                          {includedTransactionIds.includes(tx.id) ? (
+                            // This transaction was manually included from auto-exclusion
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity text-emerald-600"
+                              onClick={() => handleRemoveIncludeOverride(tx.id)}
+                              title="Скасувати включення (повернути до авто-виключених)"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                          ) : (
+                            // Normal expense - can be manually excluded
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+                              onClick={() => handleExclude(tx.id)}
+                              title="Не враховувати"
+                            >
+                              <EyeOff className="w-4 h-4" />
+                            </Button>
+                          )}
                         </div>
                       </div>
                     );
@@ -399,14 +427,25 @@ export function DayDetailModal({ day, onClose, onExcludeTransaction }: DayDetail
                   {cashWithdrawals.map((tx) => (
                     <div
                       key={tx.id}
-                      className="flex items-center justify-between p-2 bg-blue-50 rounded-lg"
+                      className="flex items-center justify-between p-2 bg-blue-50 rounded-lg group"
                     >
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium truncate">{tx.description}</div>
                       </div>
-                      <div className="flex items-center gap-1 font-medium text-blue-500">
-                        <Banknote className="w-3 h-3" />
-                        {(Math.abs(tx.amount) / 100).toFixed(2)} {getCurrencySymbol(tx.currencyCode)}
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1 font-medium text-blue-500">
+                          <Banknote className="w-3 h-3" />
+                          {(Math.abs(tx.amount) / 100).toFixed(2)} {getCurrencySymbol(tx.currencyCode)}
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+                          onClick={() => handleIncludeAutoExcluded(tx.id)}
+                          title="Враховувати у витратах"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Button>
                       </div>
                     </div>
                   ))}
@@ -511,13 +550,24 @@ export function DayDetailModal({ day, onClose, onExcludeTransaction }: DayDetail
                   {internalTransfers.map((tx) => (
                     <div
                       key={tx.id}
-                      className="flex items-center justify-between p-2 bg-muted/30 rounded-lg"
+                      className="flex items-center justify-between p-2 bg-muted/30 rounded-lg group"
                     >
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium truncate text-muted-foreground">{tx.description}</div>
                       </div>
-                      <div className="flex items-center gap-1 font-medium text-muted-foreground">
-                        {(Math.abs(tx.amount) / 100).toFixed(2)} {getCurrencySymbol(tx.currencyCode)}
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1 font-medium text-muted-foreground">
+                          {(Math.abs(tx.amount) / 100).toFixed(2)} {getCurrencySymbol(tx.currencyCode)}
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
+                          onClick={() => handleIncludeAutoExcluded(tx.id)}
+                          title="Враховувати у витратах"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Button>
                       </div>
                     </div>
                   ))}

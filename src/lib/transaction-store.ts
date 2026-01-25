@@ -26,10 +26,11 @@ export async function saveTransactions(transactions: Transaction[]): Promise<voi
 
 export async function getTransactions(
   fromTimestamp?: number,
-  toTimestamp?: number
+  toTimestamp?: number,
+  accountId?: string
 ): Promise<Transaction[]> {
-  const allTransactions = await getAllTransactions();
-  
+  const allTransactions = await getAllTransactions(accountId);
+
   return allTransactions.filter((tx) => {
     if (fromTimestamp && tx.time < fromTimestamp) return false;
     if (toTimestamp && tx.time > toTimestamp) return false;
@@ -37,8 +38,9 @@ export async function getTransactions(
   });
 }
 
-export async function getAllTransactions(): Promise<Transaction[]> {
-  const response = await fetch(API_BASE, { credentials: "include" });
+export async function getAllTransactions(accountId?: string): Promise<Transaction[]> {
+  const url = accountId ? `${API_BASE}?accountId=${encodeURIComponent(accountId)}` : API_BASE;
+  const response = await fetch(url, { credentials: "include" });
   if (!response.ok) {
     throw new Error("Failed to get transactions");
   }
