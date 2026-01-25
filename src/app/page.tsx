@@ -126,34 +126,28 @@ export default function Home() {
     }
   }, [hasMonoToken, settings.accountId, setSettings]);
 
-  // Save daily budgets to database (only future days to preserve historical data)
+  // Save daily budgets to database (all days, but preserve historical data)
   const saveDailyBudgets = useCallback(async (budget: any) => {
     if (!session?.user?.id) return;
 
     try {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      
-      // Only save future and today's budgets to preserve historical data
-      const budgetsToSave = budget.dailyLimits
-        .filter((dayBudget: DayBudget) => {
-          const dayNormalized = new Date(dayBudget.date);
-          dayNormalized.setHours(0, 0, 0, 0);
-          const shouldSave = dayNormalized >= today;
-          return shouldSave;
-        })
-        .map((dayBudget: DayBudget) => ({
-          date: dayBudget.date.toISOString(),
-          limit: dayBudget.limit,
-          spent: dayBudget.spent,
-          balance: dayBudget.limit // Store the limit as balance for historical reference
-        }));
+      // Save ALL days in the financial month
+      // The API will handle preserving historical data (won't overwrite past days)
+      const budgetsToSave = budget.dailyLimits.map((dayBudget: DayBudget) => ({
+        date: dayBudget.date.toISOString(),
+        limit: dayBudget.limit,
+        spent: dayBudget.spent,
+        balance: dayBudget.limit // Store the limit as balance for historical reference
+      }));
 
       if (budgetsToSave.length > 0) {
         await fetch("/api/db/daily-budgets", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ budgets: budgetsToSave }),
+          body: JSON.stringify({
+            budgets: budgetsToSave,
+            preserveHistorical: true, // Don't overwrite past days that already have data
+          }),
           credentials: "include",
         });
       }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   getUserDailyBudgets,
   saveUserDailyBudget,
+  getUserDailyBudget,
 } from "@/lib/db";
 import { requireAuth } from "@/lib/auth-utils";
 
@@ -58,6 +59,10 @@ export async function GET(request: NextRequest) {
 /**
  * POST /api/db/daily-budgets
  * Save multiple daily budgets (batch operation)
+ *
+ * Body:
+ * - budgets: Array of { date, limit, spent, balance }
+ * - preserveHistorical: boolean (default: false) - if true, don't overwrite past days
  */
 export async function POST(request: NextRequest) {
   try {
@@ -70,6 +75,10 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    const preserveHistorical = body.preserveHistorical ?? false;
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
 
     // Validate and save each budget
     for (const budget of body.budgets) {
@@ -88,6 +97,19 @@ export async function POST(request: NextRequest) {
           { error: "Invalid date format" },
           { status: 400 }
         );
+      }
+
+      // Normalize to start of day for comparison
+      const normalizedBudgetDate = new Date(budgetDate);
+      normalizedBudgetDate.setUTCHours(0, 0, 0, 0);
+
+      // If preserveHistorical is true and date is in the past, check if record exists
+      if (preserveHistorical && normalizedBudgetDate < today) {
+        const existingBudget = await getUserDailyBudget(userId, normalizedBudgetDate);
+        if (existingBudget) {
+          // Skip - don't overwrite historical data
+          continue;
+        }
       }
 
       await saveUserDailyBudget(
