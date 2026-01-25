@@ -54,6 +54,47 @@ export function getMonthBoundaries(date: Date = new Date()): {
   };
 }
 
+// Financial month helper functions
+export function getFinancialMonthStart(date: Date, financialDayStart: number): Date {
+  const start = new Date(date);
+  if (start.getDate() >= financialDayStart) {
+    start.setDate(financialDayStart);
+  } else {
+    start.setDate(financialDayStart);
+    start.setMonth(start.getMonth() - 1);
+  }
+  start.setHours(0, 0, 0, 0);
+  return start;
+}
+
+export function getFinancialMonthEnd(date: Date, financialDayStart: number): Date {
+  const start = getFinancialMonthStart(date, financialDayStart);
+  const end = new Date(start);
+  // Add one month to get the start of next financial month
+  end.setMonth(end.getMonth() + 1);
+  // Set to the day before next financial month starts (handles year rollover automatically)
+  end.setDate(financialDayStart - 1);
+  end.setHours(23, 59, 59, 999);
+  return end;
+}
+
+export function getFinancialMonthBoundaries(date: Date = new Date(), financialDayStart: number = 1): {
+  from: number;
+  to: number;
+  fromDate: Date;
+  toDate: Date;
+} {
+  const fromDate = getFinancialMonthStart(date, financialDayStart);
+  const toDate = getFinancialMonthEnd(date, financialDayStart);
+
+  return {
+    from: Math.floor(fromDate.getTime() / 1000),
+    to: Math.floor(toDate.getTime() / 1000),
+    fromDate,
+    toDate,
+  };
+}
+
 export function groupTransactionsByDay(
   transactions: Transaction[]
 ): Map<string, Transaction[]> {

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { format } from "date-fns";
 import { useBudgetStore } from "@/store/budget-store";
 import { BudgetCalendar } from "@/components/budget-calendar";
 import { BudgetSummary } from "@/components/budget-summary";
@@ -11,7 +10,7 @@ import { TwoFactorSettings } from "@/components/two-factor-settings";
 import { DayDetailModal } from "@/components/day-detail-modal";
 import { CategoriesPage } from "@/components/categories-page";
 import { distributeBudget } from "@/lib/budget-ai";
-import { getMonthBoundaries } from "@/lib/monobank";
+import { getFinancialMonthBoundaries } from "@/lib/monobank";
 import {
   refreshTodayTransactions,
   getAllStoredTransactions,
@@ -19,10 +18,18 @@ import {
   getLastSync,
   fetchCurrencyRates,
 } from "@/lib/mono-sync";
-import { DayBudget, Transaction, CurrencyRate, convertToUAH } from "@/types";
-import { Flame, Settings, ChartLine, Calendar, RefreshCw, AlertCircle, Tags, LogOut } from "lucide-react";
+import { DayBudget, CurrencyRate, convertToUAH } from "@/types";
+import { Flame, Settings, ChartLine, Calendar, RefreshCw, AlertCircle, Tags, LogOut, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { useSession, signOut } from "next-auth/react";
 
 type TabType = "calendar" | "prediction" | "categories" | "settings";
@@ -158,9 +165,10 @@ export default function Home() {
       if (storedTransactions.length > 0) {
         setTransactions(storedTransactions);
 
-        // Filter to current month for budget calculation
+        // Filter to current financial month for budget calculation
         const now = new Date();
-        const { from: currentFrom, to: currentTo } = getMonthBoundaries(now);
+        const financialDayStart = settings.financialMonthStart || 1;
+        const { from: currentFrom, to: currentTo } = getFinancialMonthBoundaries(now, financialDayStart);
         const currentMonthTx = storedTransactions.filter(
           tx => tx.time >= currentFrom && tx.time <= currentTo
         );
@@ -184,10 +192,11 @@ export default function Home() {
           excludedTransactionIds,
           budgetAmount, // currentBalance = card balance in UAH
           session?.user?.id,
-          settings.useAIBudget ?? true // Use AI setting from user preferences
+          settings.useAIBudget ?? true, // Use AI setting from user preferences
+          financialDayStart
         );
         setMonthBudget(budget);
-        
+
         // Save daily budgets to preserve historical limits
         await saveDailyBudgets(budget);
 
@@ -199,7 +208,7 @@ export default function Home() {
     } catch {
       // Silently fail - loading from storage is not critical
     }
-  }, [settings.accountBalance, settings.accountCurrency, excludedTransactionIds, setTransactions, setMonthBudget, saveDailyBudgets, session?.user?.id]);
+  }, [settings.accountBalance, settings.accountCurrency, settings.financialMonthStart, excludedTransactionIds, setTransactions, setMonthBudget, saveDailyBudgets, session?.user?.id]);
 
   // Refresh only today's transactions and account balance (quick update)
   const refreshToday = useCallback(async () => {
@@ -301,23 +310,25 @@ export default function Home() {
     const createInitialBudget = async () => {
       if (!monthBudget) {
         const budgetAmount = settings.accountBalance || 0;
-        const budget = await distributeBudget(budgetAmount, new Date(), transactions, [], excludedTransactionIds, budgetAmount, session?.user?.id, settings.useAIBudget ?? true);
+        const financialDayStart = settings.financialMonthStart || 1;
+        const budget = await distributeBudget(budgetAmount, new Date(), transactions, [], excludedTransactionIds, budgetAmount, session?.user?.id, settings.useAIBudget ?? true, financialDayStart);
         setMonthBudget(budget);
-        
+
         // Save daily budgets to preserve historical limits
         await saveDailyBudgets(budget);
       }
     };
-    
+
     createInitialBudget();
-  }, [isHydrated, settings.accountBalance, monthBudget, excludedTransactionIds, setMonthBudget, saveDailyBudgets, session?.user?.id]);
+  }, [isHydrated, settings.accountBalance, settings.financialMonthStart, monthBudget, excludedTransactionIds, setMonthBudget, saveDailyBudgets, session?.user?.id]);
 
   // Recalculate budget when excluded transactions or balance change
   const recalculateBudget = useCallback(async () => {
     if (transactions.length > 0) {
-      // Filter to current month for budget calculation
+      // Filter to current financial month for budget calculation
       const now = new Date();
-      const { from: currentFrom, to: currentTo } = getMonthBoundaries(now);
+      const financialDayStart = settings.financialMonthStart || 1;
+      const { from: currentFrom, to: currentTo } = getFinancialMonthBoundaries(now, financialDayStart);
       const currentMonthTx = transactions.filter(
         tx => tx.time >= currentFrom && tx.time <= currentTo
       );
@@ -336,14 +347,15 @@ export default function Home() {
         excludedTransactionIds,
         budgetAmount, // currentBalance = card balance in UAH
         session?.user?.id,
-        settings.useAIBudget ?? true // Use AI setting from user preferences
+        settings.useAIBudget ?? true, // Use AI setting from user preferences
+        financialDayStart
       );
       setMonthBudget(budget);
-      
+
       // Save daily budgets to preserve historical limits
       await saveDailyBudgets(budget);
     }
-  }, [transactions, settings.accountBalance, settings.accountCurrency, currencyRates, excludedTransactionIds, setMonthBudget]);
+  }, [transactions, settings.accountBalance, settings.accountCurrency, settings.financialMonthStart, currencyRates, excludedTransactionIds, setMonthBudget]);
 
   useEffect(() => {
     if (isHydrated && transactions.length > 0) {
@@ -482,15 +494,68 @@ export default function Home() {
                     <span className="text-orange-500">Токен не налаштовано</span>
                   )}
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => fetchMonoData()}
-                  disabled={isLoading || !hasMonoToken}
-                >
-                  <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
-                  {isLoading ? (syncProgress || "Завантаження...") : "Оновити"}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        <HelpCircle className="w-4 h-4" />
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-md">
+                      <DialogHeader>
+                        <DialogTitle>Про Burn Rate Calendar</DialogTitle>
+                        <DialogDescription>
+                          Додаток для контролю витрат на основі даних Monobank
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 text-sm">
+                        <div>
+                          <h4 className="font-medium mb-1">Як розраховується бюджет?</h4>
+                          <p className="text-muted-foreground">
+                            Бюджет автоматично розраховується на основі поточного балансу вашої картки.
+                            Денний ліміт = залишок на картці / кількість днів до кінця фінансового місяця.
+                            Це забезпечує рівномірний розподіл коштів на весь період.
+                          </p>
+                        </div>
+                        <div>
+                          <h4 className="font-medium mb-1">Синхронізація з Monobank</h4>
+                          <p className="text-muted-foreground">
+                            Дані оновлюються автоматично кожні 5 хвилин. Натисніть кнопку &quot;Оновити&quot;
+                            для ручного оновлення. Історичні дані завантажуються у налаштуваннях.
+                          </p>
+                        </div>
+                        <div>
+                          <h4 className="font-medium mb-1">Фінансовий місяць</h4>
+                          <p className="text-muted-foreground">
+                            Ви можете налаштувати день початку фінансового місяця у налаштуваннях
+                            (наприклад, з 5-го числа, якщо зарплата приходить 5-го).
+                          </p>
+                        </div>
+                        <div>
+                          <h4 className="font-medium mb-1">Виключення транзакцій</h4>
+                          <p className="text-muted-foreground">
+                            Натисніть на день у календарі, щоб переглянути транзакції.
+                            Ви можете виключити певні транзакції з розрахунку бюджету
+                            (наприклад, переказ на іншу картку).
+                          </p>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fetchMonoData()}
+                    disabled={isLoading || !hasMonoToken}
+                  >
+                    <RefreshCw className={`w-4 h-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
+                    {isLoading ? (syncProgress || "Завантаження...") : "Оновити"}
+                  </Button>
+                </div>
               </div>
 
               {monthBudget && (

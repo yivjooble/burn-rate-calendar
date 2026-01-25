@@ -1,57 +1,31 @@
 "use client";
 
 import { useState, useCallback, useMemo } from "react";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, addMonths, subMonths, isSameMonth } from "date-fns";
+import { format, eachDayOfInterval, isSameDay, isToday } from "date-fns";
 import { uk } from "date-fns/locale";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { DayBudget, Transaction } from "@/types";
 import { cn } from "@/lib/utils";
 import { useBudgetStore } from "@/store/budget-store";
-import { isExpense } from "@/lib/monobank";
+import { isExpense, getFinancialMonthStart, getFinancialMonthEnd } from "@/lib/monobank";
 
-// Helper functions for financial month calculations
-function getFinancialMonthStart(date: Date, financialDayStart: number): Date {
-  const start = new Date(date);
-  if (start.getDate() >= financialDayStart) {
-    start.setDate(financialDayStart);
-  } else {
-    start.setDate(financialDayStart);
-    start.setMonth(start.getMonth() - 1);
-  }
-  start.setHours(0, 0, 0, 0);
-  return start;
-}
-
-function getFinancialMonthEnd(date: Date, financialDayStart: number): Date {
-  const start = getFinancialMonthStart(date, financialDayStart);
-  const end = new Date(start);
-  // Add one month to get the start of next financial month
-  end.setMonth(end.getMonth() + 1);
-  // Set to the day before next financial month starts (handles year rollover automatically)
-  end.setDate(financialDayStart - 1);
-  end.setHours(23, 59, 59, 999);
-  return end;
-}
-
-function getFinancialMonthDays(date: Date, financialDayStart: number): Date[] {
-  const start = getFinancialMonthStart(date, financialDayStart);
-  const end = getFinancialMonthEnd(date, financialDayStart);
-  return eachDayOfInterval({ start, end });
+function capitalizeFirst(str: string): string {
+  return str.charAt(0).toUpperCase() + str.slice(1);
 }
 
 function getFinancialMonthLabel(date: Date, financialDayStart: number): string {
   const start = getFinancialMonthStart(date, financialDayStart);
   const end = getFinancialMonthEnd(date, financialDayStart);
-  
-  const startMonth = format(start, "MMMM", { locale: uk });
-  const endMonth = format(end, "MMMM", { locale: uk });
+
+  const startMonth = capitalizeFirst(format(start, "MMMM", { locale: uk }));
+  const endMonth = capitalizeFirst(format(end, "MMMM", { locale: uk }));
   const startDay = start.getDate();
   const endDay = end.getDate();
-  
+
   if (startMonth === endMonth) {
-    return `${startDay}—${endDay} ${startMonth}`;
+    return `${startDay} - ${endDay} ${startMonth}`;
   } else {
-    return `${startDay} ${startMonth} — ${endDay} ${endMonth}`;
+    return `${startDay} ${startMonth} - ${endDay} ${endMonth}`;
   }
 }
 
@@ -76,8 +50,7 @@ export function BudgetCalendar({ dailyLimits, onDayClick }: BudgetCalendarProps)
   // Use financial month calculations
   const financialMonthStart = selectedFinancialMonthStart;
   const financialMonthEnd = getFinancialMonthEnd(selectedFinancialMonth, financialDayStart);
-  const days = getFinancialMonthDays(selectedFinancialMonth, financialDayStart);
-  
+
   // For calendar grid, we need to show all days from financial month start to end
   // This ensures we show the correct range (e.g., Dec 5 - Jan 4)
   const calendarDays = eachDayOfInterval({ start: financialMonthStart, end: financialMonthEnd });
@@ -225,12 +198,12 @@ export function BudgetCalendar({ dailyLimits, onDayClick }: BudgetCalendarProps)
             !isCurrentFinancialMonth && "hover:opacity-70 cursor-pointer"
           )}
         >
-          <span className="text-xl font-light tracking-tight capitalize">
+          <span className="text-lg font-medium tracking-normal text-foreground">
             {financialMonthLabel}
           </span>
-          <span className="text-xs text-muted-foreground font-medium">
-            {financialMonthStart.getFullYear() !== financialMonthEnd.getFullYear() 
-              ? `${financialMonthStart.getFullYear()}—${financialMonthEnd.getFullYear()}`
+          <span className="text-xs text-muted-foreground">
+            {financialMonthStart.getFullYear() !== financialMonthEnd.getFullYear()
+              ? `${financialMonthStart.getFullYear()} - ${financialMonthEnd.getFullYear()}`
               : format(financialMonthStart, "yyyy")}
           </span>
         </button>

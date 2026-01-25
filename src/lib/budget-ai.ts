@@ -1,12 +1,11 @@
 import { Transaction, DayBudget, MonthBudget, InflationPrediction } from "@/types";
-import { isExpense, isIncome, groupTransactionsByDay } from "./monobank";
+import { isExpense, isIncome, groupTransactionsByDay, getFinancialMonthStart, getFinancialMonthEnd } from "./monobank";
 import {
   startOfMonth,
   endOfMonth,
   eachDayOfInterval,
   format,
   isWeekend,
-  isSameDay,
   addMonths,
   differenceInDays,
 } from "date-fns";
@@ -74,10 +73,16 @@ export async function distributeBudget(
   excludedTransactionIds: string[] = [],
   currentBalance?: number,
   userId?: string,
-  useAI: boolean = true
+  useAI: boolean = true,
+  financialMonthStartDay: number = 1
 ): Promise<MonthBudget> {
-  const monthStart = startOfMonth(currentDate);
-  const monthEnd = endOfMonth(currentDate);
+  // Use financial month boundaries instead of calendar month
+  const monthStart = financialMonthStartDay === 1
+    ? startOfMonth(currentDate)
+    : getFinancialMonthStart(currentDate, financialMonthStartDay);
+  const monthEnd = financialMonthStartDay === 1
+    ? endOfMonth(currentDate)
+    : getFinancialMonthEnd(currentDate, financialMonthStartDay);
   const allDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
 
   const pattern = analyzeSpendingPattern(pastTransactions);
@@ -116,7 +121,7 @@ export async function distributeBudget(
     try {
       // Get transactions for AI analysis (last 30-90 days)
       const analysisTransactions = pastTransactions.slice(-90); // Last 90 transactions
-      
+
       const aiResponse = await fetch("/api/ai/budget-distribution", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -126,7 +131,7 @@ export async function distributeBudget(
           transactions: analysisTransactions,
           startDate: monthStart.toISOString().split('T')[0],
           endDate: monthEnd.toISOString().split('T')[0],
-          financialMonthStart: 1 // TODO: Get from settings
+          financialMonthStart: financialMonthStartDay
         }),
         credentials: "include",
       });
@@ -161,18 +166,10 @@ export async function distributeBudget(
   }
 
   // Get historical daily budgets if userId is provided
-  let historicalBudgets: Map<string, { limit: number; spent: number; balance: number }> = new Map();
+  const historicalBudgets: Map<string, { limit: number; spent: number; balance: number }> = new Map();
   if (userId) {
     try {
       // Use financial month boundaries for historical budgets
-      const financialMonthStart = new Date(currentDate);
-      const financialMonthEnd = new Date(currentDate);
-      
-      // If we have financial month settings, use them
-      // For now, we'll use calendar month as fallback
-      const monthStart = startOfMonth(currentDate);
-      const monthEnd = endOfMonth(currentDate);
-      
       const savedBudgets = await getUserDailyBudgets(userId, monthStart, monthEnd);
       savedBudgets.forEach(budget => {
         const dateKey = format(budget.date, "yyyy-MM-dd");
