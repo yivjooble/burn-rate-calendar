@@ -126,7 +126,6 @@ export default function Home() {
           const dayNormalized = new Date(dayBudget.date);
           dayNormalized.setHours(0, 0, 0, 0);
           const shouldSave = dayNormalized >= today;
-          console.log(`[BUDGET] Day ${format(dayBudget.date, "yyyy-MM-dd")}: ${shouldSave ? "SAVE" : "SKIP"} (limit: ${dayBudget.limit})`);
           return shouldSave;
         })
         .map((dayBudget: DayBudget) => ({
@@ -144,8 +143,8 @@ export default function Home() {
           credentials: "include",
         });
       }
-    } catch (error) {
-      console.error("Failed to save daily budgets:", error);
+    } catch {
+      // Silently fail - saving budgets is not critical
     }
   }, [session?.user?.id]);
 
@@ -197,10 +196,10 @@ export default function Home() {
           setLastRefresh(new Date(lastSync));
         }
       }
-    } catch (err) {
-      console.error("Error loading from storage:", err);
+    } catch {
+      // Silently fail - loading from storage is not critical
     }
-  }, [settings.accountBalance, settings.accountCurrency, excludedTransactionIds, setTransactions, setMonthBudget]);
+  }, [settings.accountBalance, settings.accountCurrency, excludedTransactionIds, setTransactions, setMonthBudget, saveDailyBudgets, session?.user?.id]);
 
   // Refresh only today's transactions and account balance (quick update)
   const refreshToday = useCallback(async () => {

@@ -112,14 +112,11 @@ export async function POST(request: NextRequest) {
     // Update password
     await updateUserPassword(user.id, hash, salt);
 
-    console.log("[AUTH] Password changed successfully for:", session.user.email);
-
     return NextResponse.json({
       success: true,
       message: "Пароль успішно змінено",
     });
-  } catch (error) {
-    console.error("Change password error:", error);
+  } catch {
     return NextResponse.json(
       { error: "Помилка зміни пароля. Спробуйте ще раз." },
       { status: 500 }

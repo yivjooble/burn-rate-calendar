@@ -114,8 +114,6 @@ export async function distributeBudget(
   let aiDailyLimits: DayBudget[] | null = null;
   if (useAI && userId && currentBalance !== undefined) {
     try {
-      console.log("[BUDGET] Attempting AI-powered budget distribution...");
-      
       // Get transactions for AI analysis (last 30-90 days)
       const analysisTransactions = pastTransactions.slice(-90); // Last 90 transactions
       
@@ -135,7 +133,6 @@ export async function distributeBudget(
       
       if (aiResponse.ok) {
         const aiData = await aiResponse.json();
-        console.log(`[BUDGET] AI generated ${aiData.dailyBudgets.length} daily budgets`);
         
         // Convert AI budgets to DayBudget format
         aiDailyLimits = aiData.dailyBudgets.map((aiBudget: any) => {
@@ -157,11 +154,9 @@ export async function distributeBudget(
             reasoning: aiBudget.reasoning
           };
         });
-      } else {
-        console.warn("[BUDGET] AI budget distribution failed, falling back to traditional method");
       }
-    } catch (error) {
-      console.warn("[BUDGET] AI budget distribution error, falling back to traditional method:", error);
+    } catch {
+      // AI budget distribution failed, fall back to traditional method
     }
   }
 
@@ -187,8 +182,8 @@ export async function distributeBudget(
           balance: budget.balance
         });
       });
-    } catch (error) {
-      console.warn("Failed to load historical budgets:", error);
+    } catch {
+      // Failed to load historical budgets
     }
   }
 
@@ -210,12 +205,10 @@ export async function distributeBudget(
       const historicalBudget = historicalBudgets.get(dateKey);
       if (historicalBudget) {
         limit = historicalBudget.limit;
-        console.log(`[BUDGET] Using historical budget for ${dateKey}: ${historicalBudget.limit}`);
       } else {
         // For past days without historical budget, use base daily limit
         // This ensures past days have reasonable limits for display purposes
         limit = baseDailyLimit;
-        console.log(`[BUDGET] No historical budget for ${dateKey}, using base: ${baseDailyLimit}`);
       }
     } else {
       // For today and future days, use AI predictions if available, otherwise fallback to traditional method
@@ -224,18 +217,15 @@ export async function distributeBudget(
         const aiBudget = aiDailyLimits.find(b => format(b.date, "yyyy-MM-dd") === dateKey);
         if (aiBudget) {
           limit = aiBudget.limit;
-          console.log(`[BUDGET] Using AI prediction for ${dateKey}: ${limit} (confidence: ${aiBudget.confidence || 'N/A'})`);
         } else {
           // Fallback to traditional method if AI didn't generate budget for this day
           const availableBudget = currentBalance !== undefined ? Math.max(0, currentBalance) : Math.max(0, remainingBudget);
           limit = availableBudget / Math.max(futureDays.length, 1);
-          console.log(`[BUDGET] AI fallback for ${dateKey}: available=${availableBudget}, days=${futureDays.length}, limit=${limit}`);
         }
       } else {
         // Traditional method when AI is disabled or failed
         const availableBudget = currentBalance !== undefined ? Math.max(0, currentBalance) : Math.max(0, remainingBudget);
         limit = availableBudget / Math.max(futureDays.length, 1);
-        console.log(`[BUDGET] Traditional method for ${dateKey}: available=${availableBudget}, days=${futureDays.length}, limit=${limit}`);
       }
     }
 

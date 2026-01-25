@@ -82,14 +82,11 @@ export async function POST(request: NextRequest) {
     // Password is valid - check if 2FA is required
     const requires2FA = !!(user.totp_enabled && user.totp_secret);
 
-    console.log("[PRE-LOGIN] Credentials valid for:", normalizedEmail, "requires2FA:", requires2FA);
-
     return NextResponse.json({
       valid: true,
       requires2FA,
     });
-  } catch (error) {
-    console.error("Pre-login error:", error);
+  } catch {
     return NextResponse.json(
       { error: "Помилка перевірки" },
       { status: 500 }

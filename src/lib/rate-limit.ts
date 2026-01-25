@@ -1,8 +1,12 @@
 /**
  * Simple in-memory rate limiter using sliding window algorithm.
- * 
- * For production with multiple instances, consider Redis-based solution.
- * 
+ *
+ * ⚠️ PRODUCTION WARNING: This in-memory rate limiter does NOT work with:
+ * - Multiple server instances (each has separate state)
+ * - Server restarts (state is lost)
+ *
+ * For production deployments, implement Redis-based rate limiting.
+ *
  * References:
  * - OWASP Rate Limiting Guidelines (2024)
  * - RFC 6585 - Additional HTTP Status Codes (429 Too Many Requests)
@@ -22,17 +26,28 @@ const rateLimitStore = new Map<string, RateLimitEntry>();
 
 // Cleanup old entries every 5 minutes
 const CLEANUP_INTERVAL = 5 * 60 * 1000;
+const MAX_STORE_SIZE = 10000;
 let lastCleanup = Date.now();
 
 function cleanup(): void {
   const now = Date.now();
   if (now - lastCleanup < CLEANUP_INTERVAL) return;
-  
+
   lastCleanup = now;
+
+  // Remove expired entries
   for (const [key, entry] of rateLimitStore.entries()) {
     if (entry.resetTime < now) {
       rateLimitStore.delete(key);
     }
+  }
+
+  // Emergency cleanup if store is too large
+  if (rateLimitStore.size > MAX_STORE_SIZE) {
+    const entries = Array.from(rateLimitStore.entries());
+    entries.sort((a, b) => a[1].resetTime - b[1].resetTime);
+    const toRemove = entries.slice(0, Math.floor(MAX_STORE_SIZE / 2));
+    toRemove.forEach(([key]) => rateLimitStore.delete(key));
   }
 }
 
@@ -123,16 +138,49 @@ export const SENSITIVE_RATE_LIMIT: RateLimitConfig = {
 };
 
 /**
+ * Validate IP address format (IPv4 or IPv6).
+ */
+function isValidIP(ip: string): boolean {
+  const ipv4Regex = /^(\d{1,3}\.){3}\d{1,3}$/;
+  const ipv6Regex =
+    /^([0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$|^::1$|^([0-9a-fA-F]{1,4}:)*::([0-9a-fA-F]{1,4}:)*[0-9a-fA-F]{1,4}$/;
+  return ipv4Regex.test(ip) || ipv6Regex.test(ip);
+}
+
+/**
+ * Simple hash function for fallback identifier.
+ */
+function hashString(str: string): string {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = (hash << 5) - hash + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return Math.abs(hash).toString(36);
+}
+
+/**
  * Get client identifier from request.
- * Uses X-Forwarded-For header if behind proxy, otherwise falls back to a default.
+ * Uses X-Forwarded-For header if behind proxy, otherwise falls back to user-agent hash.
  */
 export function getClientIdentifier(request: Request): string {
   const forwarded = request.headers.get("x-forwarded-for");
   if (forwarded) {
-    // Take the first IP in the chain (original client)
-    return forwarded.split(",")[0].trim();
+    // Take LAST IP in chain (added by our trusted proxy)
+    const ips = forwarded.split(",").map((ip) => ip.trim());
+    const clientIP = ips[ips.length - 1];
+    if (isValidIP(clientIP)) {
+      return clientIP;
+    }
   }
-  
-  // Fallback - in production, configure your reverse proxy properly
+
+  // Fallback: use a hash of user-agent + accept-language for some differentiation
+  const ua = request.headers.get("user-agent") || "";
+  const lang = request.headers.get("accept-language") || "";
+  if (ua || lang) {
+    return `ua:${hashString(ua + lang)}`;
+  }
+
   return "unknown-client";
 }

@@ -42,8 +42,6 @@ function LoginForm() {
     try {
       // If we're not in 2FA mode yet, first check if 2FA is required
       if (!requires2FA) {
-        console.log("[LOGIN] Checking pre-login for:", email);
-
         const preLoginRes = await fetch("/api/auth/pre-login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -56,7 +54,6 @@ function LoginForm() {
         }
 
         const preLoginData = await preLoginRes.json();
-        console.log("[LOGIN] Pre-login result:", preLoginData);
 
         if (!preLoginData.valid) {
           setError("Невірний email або пароль");
@@ -64,7 +61,6 @@ function LoginForm() {
         }
 
         if (preLoginData.requires2FA) {
-          console.log("[LOGIN] 2FA required, showing 2FA form");
           setRequires2FA(true);
           setError(null);
           return;
@@ -81,16 +77,7 @@ function LoginForm() {
         credentials.totpCode = totpCode;
       }
 
-      console.log("[LOGIN] Attempting signIn with:", {
-        email,
-        hasPassword: !!password,
-        requires2FA,
-        hasTotpCode: !!totpCode
-      });
-
       const result = await signIn("credentials", credentials) as { ok?: boolean; error?: string; status?: number } | undefined;
-
-      console.log("[LOGIN] signIn result:", result);
 
       if (result?.error) {
         if (result.status === 429) {

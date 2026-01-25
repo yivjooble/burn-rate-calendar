@@ -84,8 +84,6 @@ export default auth(async function middleware(request) {
   // Check authentication using NextAuth v5 - session is now on request.auth
   const isAuthenticated = !!request.auth?.user;
 
-  console.log("[MIDDLEWARE]", { pathname, isAuthenticated, userId: request.auth?.user?.id });
-
   // Protected API routes - return 401 if not authenticated
   const protectedApiRoutes = ["/api/db", "/api/mono"];
   const isProtectedApi = protectedApiRoutes.some((route) => pathname.startsWith(route));

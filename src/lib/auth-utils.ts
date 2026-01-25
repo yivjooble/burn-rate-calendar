@@ -8,13 +8,6 @@ import { auth } from "@/auth";
 export async function getUserIdFromRequest(): Promise<string | null> {
   const session = await auth();
 
-  console.log("[AUTH-UTILS] auth() result:", {
-    hasSession: !!session,
-    hasUser: !!session?.user,
-    userId: session?.user?.id,
-    userEmail: session?.user?.email,
-  });
-
   return session?.user?.id ?? null;
 }
 

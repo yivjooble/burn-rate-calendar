@@ -101,7 +101,6 @@ export async function POST(request: Request) {
       comment: tx.comment ?? null,
     }));
 
-    console.log("Saving transactions:", dbTransactions.length, "first:", dbTransactions[0]);
     await saveUserTransactions(userId, dbTransactions);
     return NextResponse.json({ success: true, count: dbTransactions.length });
   } catch (error) {
@@ -111,7 +110,6 @@ export async function POST(request: Request) {
     if (error instanceof ValidationError) {
       return NextResponse.json({ error: "Validation failed", details: error.message }, { status: 400 });
     }
-    console.error("Error saving historical data:", error);
     return NextResponse.json(
       { error: "Failed to save data" },
       { status: 500 }
