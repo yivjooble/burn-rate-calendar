@@ -31,7 +31,18 @@ export const MCC_CATEGORIES: Record<string, Category> = {
 // Detect category based on transaction description
 export function getCategoryFromDescription(description: string): string | null {
   const desc = description.toLowerCase();
-  
+  const originalDesc = description.trim();
+
+  // P2P Transfers - check FIRST (before other categories)
+  // Pattern: card numbers like "516874****0082" or person names with single letters like "Наталія Г."
+  if (desc.includes("переказ") || desc.includes("на картку") || desc.includes("поповнення «") ||
+      desc.includes("від:") || desc.includes("to:") ||
+      /\d{6}\*+\d{4}/.test(originalDesc) || // Card number pattern anywhere in text
+      /^[А-ЯІЇЄҐ][а-яіїєґ']+\s+[А-ЯІЇЄҐ]\.$/.test(originalDesc) || // "Наталія Г." pattern (name + initial)
+      /^[А-ЯІЇЄҐ][а-яіїєґ']+\s+[А-ЯІЇЄҐ][а-яіїєґ']+\s+[А-ЯІЇЄҐ]\.$/.test(originalDesc)) { // "Ім'я По-батькові І."
+    return "transfers";
+  }
+
   // Postal / Delivery services
   if (desc.includes("нова пошта") || desc.includes("nova poshta") || desc.includes("novaposhta") ||
       desc.includes("укрпошта") || desc.includes("ukrposhta") || desc.includes("meest") ||
@@ -39,17 +50,18 @@ export function getCategoryFromDescription(description: string): string | null {
       desc.includes("rozetka delivery") || desc.includes("доставка")) {
     return "delivery";
   }
-  
-  // Utilities - actual utility payments
+
+  // Utilities - actual utility payments (removed generic "його")
   if (desc.includes("комунальн") || desc.includes("квартплата") ||
       desc.includes("жкг") || desc.includes("жкх") || desc.includes("осбб") ||
       desc.includes("водоканал") || desc.includes("теплоенерг") ||
       desc.includes("газопостач") || desc.includes("облгаз") ||
       desc.includes("обленерго") || desc.includes("енергопостач") ||
-      desc.includes("київенерго") || desc.includes("його")) {
+      desc.includes("київенерго") || desc.includes("liqpay комунал") ||
+      desc.includes("єосбб") || desc.includes("kcb.org.ua")) {
     return "utilities";
   }
-  
+
   // Subscriptions / Digital services
   if (desc.includes("netflix") || desc.includes("spotify") || desc.includes("youtube") ||
       desc.includes("apple") || desc.includes("google play") || desc.includes("steam") ||
@@ -57,11 +69,6 @@ export function getCategoryFromDescription(description: string): string | null {
       desc.includes("openai") || desc.includes("notion") || desc.includes("figma") ||
       desc.includes("megogo") || desc.includes("мегого") || desc.includes("підписка")) {
     return "subscriptions";
-  }
-  
-  // Transfers
-  if (desc.includes("переказ") || desc.includes("на картку") || desc.includes("поповнення «")) {
-    return "transfers";
   }
   
   // Mobile top-up
@@ -123,8 +130,13 @@ export function getMccCategory(mcc: number): string {
   if (mcc === 4131) return "transport"; // Bus lines
   if (mcc === 7512) return "transport"; // Car rental
   
-  // Utilities
-  if (mcc >= 4812 && mcc <= 4900) return "utilities"; // Telecom, utilities
+  // Transfers - check before utilities to catch wire transfers
+  if (mcc === 4829) return "transfers"; // Money orders, wire transfers (NOT utilities!)
+  if (mcc >= 6012 && mcc <= 6099) return "transfers"; // Financial institutions
+
+  // Utilities (excluding 4829 wire transfers)
+  if (mcc >= 4812 && mcc <= 4828) return "utilities"; // Telecom, utilities (before wire transfers)
+  if (mcc >= 4830 && mcc <= 4900) return "utilities"; // Telecom, utilities (after wire transfers)
   if (mcc === 4814) return "utilities"; // Telecom
   if (mcc === 4816) return "utilities"; // Computer network services
   
@@ -134,19 +146,21 @@ export function getMccCategory(mcc: number): string {
   if (mcc === 5735) return "entertainment"; // Record stores
   if (mcc === 5815 || mcc === 5816 || mcc === 5817 || mcc === 5818) return "entertainment"; // Digital goods
   
+  // Health - check BEFORE shopping to catch drug stores
+  if (mcc === 5912) return "health"; // Drug stores (must be before 5900-5999 shopping range)
+  if (mcc >= 5910 && mcc <= 5919) return "health"; // Drug stores and pharmacies
+
   // Shopping / Retail
   if (mcc >= 5200 && mcc <= 5399) return "shopping"; // Home supplies, retail
   if (mcc >= 5600 && mcc <= 5699) return "shopping"; // Apparel
   if (mcc >= 5700 && mcc <= 5799) return "shopping"; // Home furnishings
-  if (mcc >= 5900 && mcc <= 5999) return "shopping"; // Misc retail
+  if (mcc >= 5900 && mcc <= 5909) return "shopping"; // Misc retail (before drug stores)
+  if (mcc >= 5920 && mcc <= 5999) return "shopping"; // Misc retail (after drug stores)
   if (mcc === 5045 || mcc === 5046) return "shopping"; // Computers
   if (mcc === 5732) return "shopping"; // Electronics
   if (mcc === 5942) return "shopping"; // Book stores
   if (mcc === 5944) return "shopping"; // Jewelry
   if (mcc === 5945) return "shopping"; // Hobby/toy stores
-  
-  // Health
-  if (mcc >= 5912 && mcc <= 5912) return "health"; // Drug stores
   if (mcc >= 8011 && mcc <= 8099) return "health"; // Medical services
   if (mcc === 5975 || mcc === 5976 || mcc === 5977) return "health"; // Hearing aids, orthopedic
   
@@ -166,11 +180,9 @@ export function getMccCategory(mcc: number): string {
   if (mcc >= 7500 && mcc <= 7549) return "services"; // Auto services
   if (mcc >= 8111 && mcc <= 8999) return "services"; // Professional services
   
-  // Transfers & Financial
+  // Cash (ATM withdrawals)
   if (mcc === 6010 || mcc === 6011) return "cash"; // ATM, cash
-  if (mcc >= 6012 && mcc <= 6099) return "transfers"; // Financial institutions
-  if (mcc === 4829) return "transfers"; // Money orders
-  
+
   return "other";
 }
 

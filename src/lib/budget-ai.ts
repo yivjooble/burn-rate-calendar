@@ -74,7 +74,8 @@ export async function distributeBudget(
   currentBalance?: number,
   userId?: string,
   useAI: boolean = true,
-  financialMonthStartDay: number = 1
+  financialMonthStartDay: number = 1,
+  skipHistoricalLimits: boolean = false // When true, don't use saved historical limits (for budget recalculation)
 ): Promise<MonthBudget> {
   // Use financial month boundaries instead of calendar month
   const monthStart = financialMonthStartDay === 1
@@ -165,9 +166,10 @@ export async function distributeBudget(
     }
   }
 
-  // Get historical daily budgets if userId is provided
+  // Get historical daily budgets if userId is provided and we're not skipping them
+  // Skip historical limits when budget has been manually changed (to allow full recalculation)
   const historicalBudgets: Map<string, { limit: number; spent: number; balance: number }> = new Map();
-  if (userId) {
+  if (userId && !skipHistoricalLimits) {
     try {
       // Use financial month boundaries for historical budgets
       const savedBudgets = await getUserDailyBudgets(userId, monthStart, monthEnd);

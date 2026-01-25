@@ -67,6 +67,7 @@ export default function Home() {
   const [displayedBudget, setDisplayedBudget] = useState<typeof monthBudget>(null);
   const [isMonthLoading, setIsMonthLoading] = useState(false);
   const backgroundSyncRef = useRef<NodeJS.Timeout | null>(null);
+  const prevAccountBalanceRef = useRef<number | undefined>(undefined);
 
   const { initFromDb, dbInitialized } = useBudgetStore();
 
@@ -127,13 +128,13 @@ export default function Home() {
     }
   }, [hasMonoToken, settings.accountId, setSettings]);
 
-  // Save daily budgets to database (all days, but preserve historical data)
-  const saveDailyBudgets = useCallback(async (budget: any) => {
+  // Save daily budgets to database
+  // When forceUpdate is true, overwrite all days (used when budget is manually changed)
+  const saveDailyBudgets = useCallback(async (budget: any, forceUpdate: boolean = false) => {
     if (!session?.user?.id) return;
 
     try {
       // Save ALL days in the financial month
-      // The API will handle preserving historical data (won't overwrite past days)
       const budgetsToSave = budget.dailyLimits.map((dayBudget: DayBudget) => ({
         date: dayBudget.date.toISOString(),
         limit: dayBudget.limit,
@@ -147,7 +148,9 @@ export default function Home() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             budgets: budgetsToSave,
-            preserveHistorical: true, // Don't overwrite past days that already have data
+            // When forceUpdate is true (budget changed), overwrite all days
+            // Otherwise preserve historical data (don't overwrite past days)
+            preserveHistorical: !forceUpdate,
           }),
           credentials: "include",
         });
@@ -379,6 +382,13 @@ export default function Home() {
   // Recalculate budget when excluded transactions or balance change
   const recalculateBudget = useCallback(async () => {
     if (transactions.length > 0) {
+      // Check if account balance changed (budget was manually updated)
+      const balanceChanged = prevAccountBalanceRef.current !== undefined &&
+        prevAccountBalanceRef.current !== settings.accountBalance;
+
+      // Update ref with current value
+      prevAccountBalanceRef.current = settings.accountBalance;
+
       // Filter to current financial month for budget calculation
       const now = new Date();
       const financialDayStart = settings.financialMonthStart || 1;
@@ -402,20 +412,22 @@ export default function Home() {
         budgetAmount, // currentBalance = card balance in UAH
         session?.user?.id,
         settings.useAIBudget ?? true, // Use AI setting from user preferences
-        financialDayStart
+        financialDayStart,
+        balanceChanged // Skip historical limits when balance changed (force recalculation)
       );
       setMonthBudget(budget);
 
-      // Save daily budgets to preserve historical limits
-      await saveDailyBudgets(budget);
+      // Save daily budgets - force update all days when balance changed
+      await saveDailyBudgets(budget, balanceChanged);
     }
-  }, [transactions, settings.accountBalance, settings.accountCurrency, settings.financialMonthStart, currencyRates, excludedTransactionIds, setMonthBudget]);
+  }, [transactions, settings.accountBalance, settings.accountCurrency, settings.financialMonthStart, currencyRates, excludedTransactionIds, setMonthBudget, saveDailyBudgets, session?.user?.id, settings.useAIBudget]);
 
   useEffect(() => {
     if (isHydrated && transactions.length > 0) {
       recalculateBudget();
     }
-  }, [excludedTransactionIds, isHydrated, transactions.length, recalculateBudget]);
+    // Include settings.accountBalance to trigger recalculation when budget is changed manually
+  }, [excludedTransactionIds, isHydrated, transactions.length, recalculateBudget, settings.accountBalance]);
 
   if (!isHydrated) {
     return (

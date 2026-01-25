@@ -326,7 +326,7 @@ export function SpendingChart({ onRefresh, isLoading }: SpendingChartProps) {
               <span className="text-xs">Середні витрати/тиждень</span>
             </div>
             <div className="text-lg font-bold">
-              {(filteredExpenses / 100).toLocaleString("uk-UA")} ₴
+              {(avgWeeklyExpenses / 100).toLocaleString("uk-UA")} ₴
             </div>
           </CardContent>
         </Card>
