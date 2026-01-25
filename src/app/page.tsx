@@ -10,7 +10,7 @@ import { TwoFactorSettings } from "@/components/two-factor-settings";
 import { DayDetailModal } from "@/components/day-detail-modal";
 import { CategoriesPage } from "@/components/categories-page";
 import { distributeBudget } from "@/lib/budget-ai";
-import { getFinancialMonthBoundaries } from "@/lib/monobank";
+import { getFinancialMonthBoundaries, getFinancialMonthStart } from "@/lib/monobank";
 import {
   refreshTodayTransactions,
   getAllStoredTransactions,
@@ -58,6 +58,7 @@ export default function Home() {
   const [hasHistoricalData, setHasHistoricalData] = useState(false);
   const [currencyRates, setCurrencyRates] = useState<CurrencyRate[]>([]);
   const [hasMonoToken, setHasMonoToken] = useState(false);
+  const [selectedFinancialMonth, setSelectedFinancialMonth] = useState<Date>(() => new Date());
   const backgroundSyncRef = useRef<NodeJS.Timeout | null>(null);
 
   const { initFromDb, dbInitialized } = useBudgetStore();
@@ -322,6 +323,19 @@ export default function Home() {
     createInitialBudget();
   }, [isHydrated, settings.accountBalance, settings.financialMonthStart, monthBudget, excludedTransactionIds, setMonthBudget, saveDailyBudgets, session?.user?.id]);
 
+  // Handle month change from calendar navigation
+  const handleMonthChange = useCallback((month: Date) => {
+    setSelectedFinancialMonth(month);
+  }, []);
+
+  // Initialize selected month to current financial month when settings load
+  useEffect(() => {
+    if (isHydrated && settings.financialMonthStart) {
+      const currentFinancialMonth = getFinancialMonthStart(new Date(), settings.financialMonthStart);
+      setSelectedFinancialMonth(currentFinancialMonth);
+    }
+  }, [isHydrated, settings.financialMonthStart]);
+
   // Recalculate budget when excluded transactions or balance change
   const recalculateBudget = useCallback(async () => {
     if (transactions.length > 0) {
@@ -564,6 +578,8 @@ export default function Home() {
                   <BudgetCalendar
                     dailyLimits={monthBudget.dailyLimits}
                     onDayClick={setSelectedDay}
+                    selectedMonth={selectedFinancialMonth}
+                    onMonthChange={handleMonthChange}
                   />
                 </>
               )}

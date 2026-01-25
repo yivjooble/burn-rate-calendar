@@ -95,6 +95,15 @@ export function getFinancialMonthBoundaries(date: Date = new Date(), financialDa
   };
 }
 
+/**
+ * Check if two dates are in the same financial month
+ */
+export function isSameFinancialMonth(date1: Date, date2: Date, financialDayStart: number): boolean {
+  const start1 = getFinancialMonthStart(date1, financialDayStart);
+  const start2 = getFinancialMonthStart(date2, financialDayStart);
+  return start1.getTime() === start2.getTime();
+}
+
 export function groupTransactionsByDay(
   transactions: Transaction[]
 ): Map<string, Transaction[]> {

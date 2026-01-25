@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { format, eachDayOfInterval, isSameDay, isToday } from "date-fns";
 import { uk } from "date-fns/locale";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { DayBudget, Transaction } from "@/types";
 import { cn } from "@/lib/utils";
 import { useBudgetStore } from "@/store/budget-store";
-import { isExpense, getFinancialMonthStart, getFinancialMonthEnd } from "@/lib/monobank";
+import { isExpense, getFinancialMonthStart, getFinancialMonthEnd, isSameFinancialMonth } from "@/lib/monobank";
 
 function capitalizeFirst(str: string): string {
   return str.charAt(0).toUpperCase() + str.slice(1);
@@ -32,24 +32,19 @@ function getFinancialMonthLabel(date: Date, financialDayStart: number): string {
 interface BudgetCalendarProps {
   dailyLimits: DayBudget[];
   onDayClick?: (day: DayBudget) => void;
+  selectedMonth: Date;
+  onMonthChange: (month: Date) => void;
 }
 
-export function BudgetCalendar({ dailyLimits, onDayClick }: BudgetCalendarProps) {
+export function BudgetCalendar({ dailyLimits, onDayClick, selectedMonth, onMonthChange }: BudgetCalendarProps) {
   const { transactions, excludedTransactionIds, settings } = useBudgetStore();
   const financialDayStart = settings.financialMonthStart || 1;
-  
-  // Initialize with current financial month start to ensure correct initial state
-  const [selectedFinancialMonth, setSelectedFinancialMonth] = useState(() => {
-    return getFinancialMonthStart(new Date(), financialDayStart);
-  });
-  
-  const currentFinancialMonthStart = getFinancialMonthStart(new Date(), financialDayStart);
-  const selectedFinancialMonthStart = getFinancialMonthStart(selectedFinancialMonth, financialDayStart);
-  const isCurrentFinancialMonth = currentFinancialMonthStart.getTime() === selectedFinancialMonthStart.getTime();
+
+  const isCurrentFinancialMonth = isSameFinancialMonth(selectedMonth, new Date(), financialDayStart);
   
   // Use financial month calculations
-  const financialMonthStart = selectedFinancialMonthStart;
-  const financialMonthEnd = getFinancialMonthEnd(selectedFinancialMonth, financialDayStart);
+  const financialMonthStart = getFinancialMonthStart(selectedMonth, financialDayStart);
+  const financialMonthEnd = getFinancialMonthEnd(selectedMonth, financialDayStart);
 
   // For calendar grid, we need to show all days from financial month start to end
   // This ensures we show the correct range (e.g., Dec 5 - Jan 4)
@@ -61,36 +56,30 @@ export function BudgetCalendar({ dailyLimits, onDayClick }: BudgetCalendarProps)
   const weekDays = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Нд"];
   
   const goToPreviousMonth = useCallback(() => {
-    setSelectedFinancialMonth(prev => {
-      // Go back by one financial month
-      const currentStart = getFinancialMonthStart(prev, financialDayStart);
-      const newDate = new Date(currentStart);
-      newDate.setDate(newDate.getDate() - 1); // Go to day before current financial month starts
-      // Ensure we get the correct financial month for this date
-      const newFinancialMonthStart = getFinancialMonthStart(newDate, financialDayStart);
-      // Return a date that falls within the previous financial month
-      return newFinancialMonthStart;
-    });
-  }, [financialDayStart]);
-  
+    // Go back by one financial month
+    const currentStart = getFinancialMonthStart(selectedMonth, financialDayStart);
+    const newDate = new Date(currentStart);
+    newDate.setDate(newDate.getDate() - 1); // Go to day before current financial month starts
+    // Ensure we get the correct financial month for this date
+    const newFinancialMonthStart = getFinancialMonthStart(newDate, financialDayStart);
+    onMonthChange(newFinancialMonthStart);
+  }, [selectedMonth, financialDayStart, onMonthChange]);
+
   const goToNextMonth = useCallback(() => {
-    setSelectedFinancialMonth(prev => {
-      // Go forward by one financial month
-      const currentEnd = getFinancialMonthEnd(prev, financialDayStart);
-      const newDate = new Date(currentEnd);
-      newDate.setDate(newDate.getDate() + 1); // Go to day after current financial month ends
-      // Ensure we get the correct financial month for this date
-      const newFinancialMonthStart = getFinancialMonthStart(newDate, financialDayStart);
-      // Return a date that falls within the next financial month
-      return newFinancialMonthStart;
-    });
-  }, [financialDayStart]);
-  
+    // Go forward by one financial month
+    const currentEnd = getFinancialMonthEnd(selectedMonth, financialDayStart);
+    const newDate = new Date(currentEnd);
+    newDate.setDate(newDate.getDate() + 1); // Go to day after current financial month ends
+    // Ensure we get the correct financial month for this date
+    const newFinancialMonthStart = getFinancialMonthStart(newDate, financialDayStart);
+    onMonthChange(newFinancialMonthStart);
+  }, [selectedMonth, financialDayStart, onMonthChange]);
+
   const goToCurrentMonth = useCallback(() => {
-    setSelectedFinancialMonth(getFinancialMonthStart(new Date(), financialDayStart));
-  }, [financialDayStart]);
-  
-  const financialMonthLabel = getFinancialMonthLabel(selectedFinancialMonth, financialDayStart);
+    onMonthChange(getFinancialMonthStart(new Date(), financialDayStart));
+  }, [financialDayStart, onMonthChange]);
+
+  const financialMonthLabel = getFinancialMonthLabel(selectedMonth, financialDayStart);
 
   // Calculate daily data from transactions (for both current and historical months)
   const historicalDailyData = useMemo(() => {
