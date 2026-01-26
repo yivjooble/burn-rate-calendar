@@ -655,36 +655,84 @@ export async function clearUserExcludedTransactions(
 export async function getUserIncludedTransactionIds(
   userId: string
 ): Promise<string[]> {
-  const rows = await prisma.userIncludedTransaction.findMany({
-    where: { userId },
-  });
-  return rows.map((r) => r.id);
+  try {
+    const rows = await prisma.userIncludedTransaction.findMany({
+      where: { userId },
+    });
+    return rows.map((r) => r.id);
+  } catch (error) {
+    // Handle missing table gracefully - return empty array
+    if (error instanceof Error &&
+        (error.message.includes("does not exist") ||
+         error.message.includes("P2021") ||
+         error.message.includes("P2022"))) {
+      console.warn("UserIncludedTransaction table not yet created");
+      return [];
+    }
+    throw error;
+  }
 }
 
 export async function addUserIncludedTransaction(
   userId: string,
   transactionId: string
 ): Promise<void> {
-  await prisma.userIncludedTransaction.upsert({
-    where: { id_userId: { id: transactionId, userId } },
-    update: {},
-    create: { id: transactionId, userId },
-  });
+  try {
+    await prisma.userIncludedTransaction.upsert({
+      where: { id_userId: { id: transactionId, userId } },
+      update: {},
+      create: { id: transactionId, userId },
+    });
+  } catch (error) {
+    // Handle missing table gracefully - log and continue
+    if (error instanceof Error &&
+        (error.message.includes("does not exist") ||
+         error.message.includes("P2021") ||
+         error.message.includes("P2022"))) {
+      console.warn("UserIncludedTransaction table not yet created, skipping add");
+      return;
+    }
+    throw error;
+  }
 }
 
 export async function removeUserIncludedTransaction(
   userId: string,
   transactionId: string
 ): Promise<void> {
-  await prisma.userIncludedTransaction.deleteMany({
-    where: { id: transactionId, userId },
-  });
+  try {
+    await prisma.userIncludedTransaction.deleteMany({
+      where: { id: transactionId, userId },
+    });
+  } catch (error) {
+    // Handle missing table gracefully - log and continue
+    if (error instanceof Error &&
+        (error.message.includes("does not exist") ||
+         error.message.includes("P2021") ||
+         error.message.includes("P2022"))) {
+      console.warn("UserIncludedTransaction table not yet created, skipping remove");
+      return;
+    }
+    throw error;
+  }
 }
 
 export async function clearUserIncludedTransactions(
   userId: string
 ): Promise<void> {
-  await prisma.userIncludedTransaction.deleteMany({ where: { userId } });
+  try {
+    await prisma.userIncludedTransaction.deleteMany({ where: { userId } });
+  } catch (error) {
+    // Handle missing table gracefully - log and continue
+    if (error instanceof Error &&
+        (error.message.includes("does not exist") ||
+         error.message.includes("P2021") ||
+         error.message.includes("P2022"))) {
+      console.warn("UserIncludedTransaction table not yet created, skipping clear");
+      return;
+    }
+    throw error;
+  }
 }
 
 // =============================================================================

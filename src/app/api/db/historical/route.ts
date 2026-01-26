@@ -11,6 +11,19 @@ import {
 import { requireAuth } from "@/lib/auth-utils";
 import { historicalTransactionsSchema, historicalMetaSchema, validateInput, ValidationError } from "@/lib/validation";
 
+// Helper to check if error is due to missing table/column
+function isMissingSchemaError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const message = error.message.toLowerCase();
+  // Prisma error codes: P2021 = table doesn't exist, P2022 = column doesn't exist
+  return (
+    message.includes("does not exist") ||
+    message.includes("p2021") ||
+    message.includes("p2022") ||
+    message.includes("relation") && message.includes("does not exist")
+  );
+}
+
 // GET - retrieve transactions and meta
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -34,7 +47,18 @@ export async function GET(request: Request) {
       });
     }
 
-    const transactions = await getAllUserTransactions(userId, accountId);
+    let transactions;
+    try {
+      transactions = await getAllUserTransactions(userId, accountId);
+    } catch (dbError) {
+      // If accountId column doesn't exist, try without filtering
+      if (isMissingSchemaError(dbError) && accountId) {
+        console.warn("accountId column not yet created, fetching all transactions");
+        transactions = await getAllUserTransactions(userId);
+      } else {
+        throw dbError;
+      }
+    }
     // Convert to frontend format
     const formatted = transactions.map(tx => ({
       id: tx.id,
@@ -52,6 +76,11 @@ export async function GET(request: Request) {
   } catch (error) {
     if (error instanceof Error && error.message === "Unauthorized") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+    // Handle missing table gracefully - return empty array
+    if (isMissingSchemaError(error)) {
+      console.warn("UserTransaction table or column not yet created, returning empty array");
+      return NextResponse.json([]);
     }
     return NextResponse.json(
       { error: "Failed to read data" },
