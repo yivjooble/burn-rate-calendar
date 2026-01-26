@@ -47,23 +47,32 @@ export async function POST(request: NextRequest) {
 
     // Calculate available budget for distribution
     const availableBudget = Math.max(0, currentBalance);
-    
+
     // Get date range
     const start = new Date(startDate);
     const end = new Date(endDate);
-    const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-    
+
+    // IMPORTANT: Only distribute budget to TODAY and future days, not all days in the month
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // If startDate is in the past, use today as the effective start for budget distribution
+    const effectiveStart = start < today ? today : start;
+
+    // Calculate remaining days (from today/effectiveStart to end)
+    const remainingDays = Math.ceil((end.getTime() - effectiveStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
     // Analyze spending patterns
-    const spendingAnalysis = analyzeSpendingPatterns(transactions, start, financialMonthStart);
-    
-    // Generate AI-powered daily budgets
-    const dailyBudgets = generateAIBudgets(availableBudget, days, spendingAnalysis, start);
+    const spendingAnalysis = analyzeSpendingPatterns(transactions, effectiveStart, financialMonthStart);
+
+    // Generate AI-powered daily budgets only for remaining days
+    const dailyBudgets = generateAIBudgets(availableBudget, remainingDays, spendingAnalysis, effectiveStart);
     
     return NextResponse.json({
       dailyBudgets,
       analysis: spendingAnalysis,
       usedBudget: availableBudget,
-      totalDays: days
+      totalDays: remainingDays
     });
 
   } catch (error) {
@@ -136,51 +145,66 @@ function calculateSeasonalFactor(monthlyPatterns: Record<number, number>, curren
 }
 
 function generateAIBudgets(availableBudget: number, days: number, analysis: any, startDate: Date): DayBudget[] {
-  const budgets: DayBudget[] = [];
   const { dayOfWeekAverages, seasonalFactor, averageDailySpending } = analysis;
-  
+
   // Calculate base daily budget
   const baseDailyBudget = availableBudget / days;
-  
+
+  // First pass: calculate weights for all days
+  const dayData: Array<{
+    date: Date;
+    weight: number;
+    dayOfWeekAverage: number;
+  }> = [];
+
   for (let i = 0; i < days; i++) {
     const currentDate = new Date(startDate);
     currentDate.setDate(startDate.getDate() + i);
-    
+
     const dayOfWeek = currentDate.getDay();
     const dayOfWeekAverage = dayOfWeekAverages[dayOfWeek] || 0;
     const averageSpending = averageDailySpending || baseDailyBudget;
-    
+
     // Calculate weight based on historical spending patterns
     let weight = 1.0;
     if (dayOfWeekAverage > 0 && averageSpending > 0) {
       weight = (dayOfWeekAverage / averageSpending) * seasonalFactor;
     }
-    
+
     // Apply some smoothing to avoid extreme variations
     weight = Math.max(0.3, Math.min(3.0, weight));
-    
-    // Calculate daily limit with AI reasoning
-    const limit = baseDailyBudget * weight;
-    const confidence = calculateConfidence(dayOfWeekAverage, averageSpending, analysis.totalTransactions);
-    
+
+    dayData.push({ date: currentDate, weight, dayOfWeekAverage });
+  }
+
+  // Second pass: normalize weights so total budget is exactly distributed
+  const totalWeight = dayData.reduce((sum, d) => sum + d.weight, 0);
+  const normalizedBudgets: DayBudget[] = [];
+
+  for (const day of dayData) {
+    // Normalize: each day gets (weight / totalWeight) * availableBudget
+    const normalizedLimit = (day.weight / totalWeight) * availableBudget;
+    const confidence = calculateConfidence(day.dayOfWeekAverage, averageDailySpending || baseDailyBudget, analysis.totalTransactions);
+
+    const normalizedWeight = day.weight / (totalWeight / days); // weight relative to average
     let reasoning = "";
-    if (weight > 1.2) {
-      reasoning = `Higher spending expected (${(weight * 100).toFixed(0)}% of average)`;
-    } else if (weight < 0.8) {
-      reasoning = `Lower spending expected (${(weight * 100).toFixed(0)}% of average)`;
+    if (normalizedWeight > 1.2) {
+      reasoning = `Higher spending expected (${(normalizedWeight * 100).toFixed(0)}% of average)`;
+    } else if (normalizedWeight < 0.8) {
+      reasoning = `Lower spending expected (${(normalizedWeight * 100).toFixed(0)}% of average)`;
     } else {
       reasoning = "Normal spending expected";
     }
-    
-    budgets.push({
-      date: currentDate.toISOString().split('T')[0],
-      limit: Math.round(limit),
+
+    normalizedBudgets.push({
+      date: day.date.toISOString().split('T')[0],
+      limit: Math.round(normalizedLimit),
       confidence,
       reasoning
     });
   }
-  
-  return budgets;
+
+  return normalizedBudgets;
 }
 
 function calculateConfidence(daySpending: number, averageSpending: number, totalTransactions: number): number {

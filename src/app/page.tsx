@@ -585,7 +585,7 @@ export default function Home() {
                   )}
                   {hasMonoToken ? (
                     <span>
-                      Monobank грудень 2025
+                      Monobank {new Intl.DateTimeFormat('uk-UA', { month: 'long', year: 'numeric' }).format(getFinancialMonthStart(selectedFinancialMonth, settings.financialMonthStart || 1))}
                       {settings.selectedAccountCurrencies && settings.selectedAccountCurrencies.length > 0 && (
                         <span className="ml-1 text-xs">
                           ({[...new Set(settings.selectedAccountCurrencies)].map(code =>
