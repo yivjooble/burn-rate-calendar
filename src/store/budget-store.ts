@@ -1,8 +1,12 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
-import { UserSettings, MonthBudget, InflationPrediction, Transaction, MonoAccount } from "@/types";
+import { persist, createJSONStorage } from "zustand/middleware";
+import { UserSettings, MonthBudget, InflationPrediction, Transaction, MonoAccount, CustomCategory } from "@/types";
 
-export interface CustomCategory {
+// Hybrid store that works with both localStorage and SWR
+// During migration, this store holds client-only state
+// while SWR handles server-synced data
+
+export interface CustomCategoryStore {
   id: string;
   name: string;
   icon: string;
@@ -10,30 +14,36 @@ export interface CustomCategory {
 }
 
 interface BudgetState {
+  // Server-synced data (will be migrated to SWR)
   settings: UserSettings;
-  monthBudget: MonthBudget | null;
-  inflationPrediction: InflationPrediction | null;
   transactions: Transaction[];
   excludedTransactionIds: string[];
-  includedTransactionIds: string[]; // Override auto-exclusion (internal transfers, ATM)
-  customCategories: CustomCategory[];
+  includedTransactionIds: string[];
+  
+  // Client-only state (remains in localStorage)
+  monthBudget: MonthBudget | null;
+  inflationPrediction: InflationPrediction | null;
+  customCategories: CustomCategoryStore[];
   transactionCategories: Record<string, string>; // transactionId -> categoryId
   transactionComments: Record<string, string>; // transactionId -> comment
-  cachedAccounts: MonoAccount[]; // Cached Monobank accounts to avoid rate limiting
+  cachedAccounts: MonoAccount[];
+  
+  // UI state
   isLoading: boolean;
-  isHistoricalLoading: boolean; // Historical data sync in progress
+  isHistoricalLoading: boolean;
   error: string | null;
   dbInitialized: boolean;
 
+  // Actions
   setSettings: (settings: Partial<UserSettings>) => void;
   setMonthBudget: (budget: MonthBudget) => void;
   setInflationPrediction: (prediction: InflationPrediction) => void;
   setTransactions: (transactions: Transaction[]) => void;
   excludeTransaction: (transactionId: string) => void;
   includeTransaction: (transactionId: string) => void;
-  includeAutoExcluded: (transactionId: string) => void; // Override auto-exclusion
-  removeIncludeOverride: (transactionId: string) => void; // Remove override
-  addCustomCategory: (category: CustomCategory) => void;
+  includeAutoExcluded: (transactionId: string) => void;
+  removeIncludeOverride: (transactionId: string) => void;
+  addCustomCategory: (category: CustomCategoryStore) => void;
   removeCustomCategory: (categoryId: string) => void;
   setTransactionCategory: (transactionId: string, categoryId: string | null) => void;
   setTransactionComment: (transactionId: string, comment: string) => void;
@@ -44,6 +54,11 @@ interface BudgetState {
   reset: () => void;
   initFromDb: () => Promise<void>;
   syncToDb: () => Promise<void>;
+  
+  // SWR integration methods
+  setBudgetFromSWR: (budget: MonthBudget) => void;
+  updateSettingsFromSWR: (settings: UserSettings) => void;
+  updateCategoriesFromSWR: (categories: CustomCategory[]) => void;
 }
 
 const initialSettings: UserSettings = {
@@ -51,6 +66,16 @@ const initialSettings: UserSettings = {
   accountBalance: 0,
   accountCurrency: 980, // UAH by default
 };
+
+// Legacy storage interface for migration
+interface LegacyStorage {
+  settings: UserSettings;
+  monthBudget: MonthBudget | null;
+  customCategories: CustomCategoryStore[];
+  transactionCategories: Record<string, string>;
+  transactionComments: Record<string, string>;
+  cachedAccounts: MonoAccount[];
+}
 
 export const useBudgetStore = create<BudgetState>()(
   persist(
@@ -74,12 +99,11 @@ export const useBudgetStore = create<BudgetState>()(
         set((state) => ({
           settings: { ...state.settings, ...newSettings },
         }));
-        // Sync to DB - only sync the changed settings (excluding monoToken)
+        // Sync to DB (excluding monoToken)
         Object.entries(newSettings)
           .filter(([key]) => key !== "monoToken")
           .forEach(([key, value]) => {
             if (value !== undefined) {
-              // Convert arrays to JSON strings for storage
               const stringValue = Array.isArray(value) ? JSON.stringify(value) : String(value);
               fetch("/api/db/settings", {
                 method: "POST",
@@ -93,12 +117,28 @@ export const useBudgetStore = create<BudgetState>()(
 
       setMonthBudget: (budget) => set({ monthBudget: budget }),
 
+      // SWR integration: update budget from SWR cache
+      setBudgetFromSWR: (budget) => set({ monthBudget: budget }),
+
+      // SWR integration: update settings from SWR cache
+      updateSettingsFromSWR: (settings) => set({ settings }),
+
+      // SWR integration: update categories from SWR cache
+      updateCategoriesFromSWR: (categories) => {
+        const storeCategories = categories.map(cat => ({
+          id: cat.id,
+          name: cat.name,
+          icon: cat.icon || "",
+          color: cat.color || "#000000",
+        }));
+        set({ customCategories: storeCategories });
+      },
+
       setInflationPrediction: (prediction) =>
         set({ inflationPrediction: prediction }),
 
       setTransactions: (transactions) => {
         set({ transactions });
-        // Sync to DB
         fetch("/api/db/transactions", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -111,7 +151,6 @@ export const useBudgetStore = create<BudgetState>()(
         set((state) => ({
           excludedTransactionIds: [...state.excludedTransactionIds, transactionId],
         }));
-        // Sync to DB
         fetch("/api/db/excluded", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -126,7 +165,6 @@ export const useBudgetStore = create<BudgetState>()(
             (id) => id !== transactionId
           ),
         }));
-        // Sync to DB
         fetch("/api/db/excluded", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -139,7 +177,6 @@ export const useBudgetStore = create<BudgetState>()(
         set((state) => ({
           includedTransactionIds: [...state.includedTransactionIds, transactionId],
         }));
-        // Sync to DB
         fetch("/api/db/included", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -154,7 +191,6 @@ export const useBudgetStore = create<BudgetState>()(
             (id) => id !== transactionId
           ),
         }));
-        // Sync to DB
         fetch("/api/db/included", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -200,7 +236,6 @@ export const useBudgetStore = create<BudgetState>()(
           }
           return { transactionComments: newComments };
         });
-        // Sync to DB
         fetch("/api/db/transaction-comments", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -247,12 +282,9 @@ export const useBudgetStore = create<BudgetState>()(
           if (settingsRes.ok) {
             const dbSettings = await settingsRes.json();
             const settings: Partial<UserSettings> = {};
-            // Note: monoToken is NOT returned from settings API for security
-            // Token status is checked via /api/db/mono-token instead
             if (dbSettings.accountId) settings.accountId = dbSettings.accountId;
             if (dbSettings.accountBalance) settings.accountBalance = Number(dbSettings.accountBalance);
             if (dbSettings.accountCurrency) settings.accountCurrency = Number(dbSettings.accountCurrency);
-            // Legacy support for monthlyBudget
             if (dbSettings.monthlyBudget) settings.monthlyBudget = Number(dbSettings.monthlyBudget);
             if (Object.keys(settings).length > 0) {
               set((state) => ({ settings: { ...state.settings, ...settings } }));
@@ -290,7 +322,6 @@ export const useBudgetStore = create<BudgetState>()(
       syncToDb: async () => {
         const state = get();
         try {
-          // Sync settings (excluding monoToken which is managed via separate API)
           await Promise.all(
             Object.entries(state.settings)
               .filter(([key]) => key !== "monoToken")
@@ -306,7 +337,6 @@ export const useBudgetStore = create<BudgetState>()(
               )
           );
 
-          // Sync transactions
           if (state.transactions.length > 0) {
             await fetch("/api/db/transactions", {
               method: "POST",
@@ -322,20 +352,17 @@ export const useBudgetStore = create<BudgetState>()(
     }),
     {
       name: "burn-rate-storage",
+      storage: createJSONStorage<LegacyStorage>(() => localStorage),
       partialize: (state) => ({
         settings: {
           ...state.settings,
-          // NEVER persist monoToken to localStorage for security
-          // Token is stored encrypted in database only
-          monoToken: undefined,
+          monoToken: undefined, // Never persist monoToken
         },
-        // excludedTransactionIds - loaded from SQLite DB only, not localStorage
-        // transactions - loaded from SQLite DB only, not localStorage
         monthBudget: state.monthBudget,
         customCategories: state.customCategories,
         transactionCategories: state.transactionCategories,
         transactionComments: state.transactionComments,
-        cachedAccounts: state.cachedAccounts, // Cache accounts to avoid rate limiting
+        cachedAccounts: state.cachedAccounts,
       }),
     }
   )
