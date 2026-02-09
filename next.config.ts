@@ -60,7 +60,6 @@ if (process.env.NODE_ENV === "production") {
 }
 
 const nextConfig: NextConfig = {
-  reactCompiler: true,
   
   async headers() {
     return [

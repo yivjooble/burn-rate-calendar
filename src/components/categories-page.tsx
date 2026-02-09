@@ -129,6 +129,32 @@ export function CategoriesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [financialDayStart]);
   
+  // Load previous period data for trend comparison
+  const loadPreviousPeriod = useCallback(async () => {
+    if (historicalTransactions.length === 0) return;
+    
+    setIsLoadingTrends(true);
+    try {
+      const periodLength = dateRange.to.getTime() - dateRange.from.getTime();
+      const previousFrom = new Date(dateRange.from.getTime() - periodLength);
+      const previousTo = new Date(dateRange.from.getTime() - 1);
+      
+      let previousTotal = 0;
+      historicalTransactions.forEach(tx => {
+        const txDate = new Date(tx.time * 1000);
+        if (txDate >= previousFrom && txDate <= previousTo) {
+          if (isExpense(tx, historicalTransactions) && !excludedTransactionIds.includes(tx.id)) {
+            previousTotal += Math.abs(tx.amount);
+          }
+        }
+      });
+      
+      setPreviousPeriodTotal(previousTotal);
+    } finally {
+      setIsLoadingTrends(false);
+    }
+  }, [historicalTransactions, dateRange, excludedTransactionIds]);
+
   // Load previous period when transactions are loaded or date range changes
   useEffect(() => {
     if (historicalTransactions.length > 0) {
@@ -193,32 +219,6 @@ export function CategoriesPage() {
   useEffect(() => {
     loadFromStorage();
   }, [loadFromStorage]);
-
-  // Load previous period data for trend comparison
-  const loadPreviousPeriod = useCallback(async () => {
-    if (historicalTransactions.length === 0) return;
-    
-    setIsLoadingTrends(true);
-    try {
-      const periodLength = dateRange.to.getTime() - dateRange.from.getTime();
-      const previousFrom = new Date(dateRange.from.getTime() - periodLength);
-      const previousTo = new Date(dateRange.from.getTime() - 1);
-      
-      let previousTotal = 0;
-      historicalTransactions.forEach(tx => {
-        const txDate = new Date(tx.time * 1000);
-        if (txDate >= previousFrom && txDate <= previousTo) {
-          if (isExpense(tx, historicalTransactions) && !excludedTransactionIds.includes(tx.id)) {
-            previousTotal += Math.abs(tx.amount);
-          }
-        }
-      });
-      
-      setPreviousPeriodTotal(previousTotal);
-    } finally {
-      setIsLoadingTrends(false);
-    }
-  }, [historicalTransactions, dateRange, excludedTransactionIds]);
 
   // Calculate category totals
   const categoryData = useMemo(() => {
@@ -290,6 +290,11 @@ export function CategoriesPage() {
   // ============================================
   // PHASE 1: CATEGORIES REDESIGN - COMPUTED VALUES
   // ============================================
+  
+  // Calculate total expenses first (used by multiple hooks)
+  const totalExpenses = useMemo(() => {
+    return categoryData.reduce((sum, c) => sum + c.total, 0);
+  }, [categoryData]);
   
   // Calculate category budgets with progress tracking
   const categoryBudgets = useMemo((): CategoryBudget[] => {
@@ -402,7 +407,6 @@ export function CategoriesPage() {
     const stdCat = getCategoryByKey(selectedCategory);
     return stdCat ? { ...stdCat, currencyCode } : null;
   }, [selectedCategory, customCategories, categoryData]);
-  const totalExpenses = categoryData.reduce((sum, c) => sum + c.total, 0);
 
   return (
     <div className="space-y-4">
@@ -691,7 +695,7 @@ export function CategoriesPage() {
                       ))}
                     </Pie>
                     <Tooltip
-                      formatter={(value, name) => [
+                      formatter={(value: number | string, name: string) => [
                         `${(Number(value) / 100).toLocaleString("uk-UA")} ₴`,
                         name
                       ]}
@@ -988,7 +992,7 @@ export function CategoriesPage() {
                     tickFormatter={(value: number) => `${(value / 1000).toFixed(0)}k`}
                   />
                   <Tooltip 
-                    formatter={(value) => [
+                    formatter={(value: number | string) => [
                       `${Number(value).toLocaleString("uk-UA")} ${getCurrencySymbol(selectedCategoryInfo.currencyCode)}`,
                       selectedCategoryInfo.name
                     ]}

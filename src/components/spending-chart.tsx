@@ -25,6 +25,7 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
+  TooltipProps,
 } from "recharts";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
@@ -377,11 +378,11 @@ export function SpendingChart({ onRefresh, isLoading }: SpendingChartProps) {
                     tickFormatter={(value: number) => `${(value / 1000).toFixed(0)}k`}
                   />
                   <Tooltip 
-                    formatter={(value, name) => [
+                    formatter={(value: number | string, name: string) => [
                       `${Number(value).toLocaleString("uk-UA")} ₴`,
                       name
                     ]}
-                    itemSorter={(item) => {
+                    itemSorter={(item: TooltipProps<number, string>) => {
                       const order: Record<string, number> = { "Доходи": 0, "Витрати": 1, "Баланс": 2 };
                       return order[item.name as string] ?? 99;
                     }}

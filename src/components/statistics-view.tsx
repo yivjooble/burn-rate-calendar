@@ -11,7 +11,7 @@ import {
   RefreshCw, 
   TrendingUp, 
   TrendingDown, 
-  TrendingRight,
+  Minus,
   Flame,
   Target,
   DollarSign,
@@ -312,7 +312,7 @@ export function StatisticsView({ onRefresh, isLoading: externalLoading }: Statis
             
             <div className="p-3 bg-muted/50 rounded-lg">
               <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                <TrendingRight className="w-4 h-4" />
+                <Minus className="w-4 h-4" />
                 <span className="text-xs">Фактично/день</span>
               </div>
               <p className="text-lg font-bold">
@@ -358,7 +358,7 @@ export function StatisticsView({ onRefresh, isLoading: externalLoading }: Statis
               </span>
             ) : (
               <span className="flex items-center gap-1 text-gray-600 font-medium">
-                <TrendingRight className="w-4 h-4" /> Стабільний
+                <Minus className="w-4 h-4" /> Стабільний
               </span>
             )}
           </div>
@@ -461,14 +461,14 @@ export function StatisticsView({ onRefresh, isLoading: externalLoading }: Statis
                 <YAxis 
                   tick={{ fontSize: 11 }}
                   stroke="#9ca3af"
-                  tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
+                  tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`}
                 />
                 <Tooltip
                   formatter={(value: number) => [
                     `${value.toLocaleString("uk-UA")} ₴`,
                     "Середнє"
                   ]}
-                  labelFormatter={(label) => {
+                  labelFormatter={(label: string) => {
                     const item = weeklyPatternData.find(d => d.day === label);
                     return item?.fullDay || label;
                   }}
@@ -597,7 +597,7 @@ export function StatisticsView({ onRefresh, isLoading: externalLoading }: Statis
                   <YAxis 
                     tick={{ fontSize: 11 }}
                     stroke="#9ca3af"
-                    tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`}
+                    tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`}
                   />
                   <Tooltip
                     formatter={(value: number, name: string) => [
