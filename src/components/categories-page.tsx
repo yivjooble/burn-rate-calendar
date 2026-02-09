@@ -6,7 +6,8 @@ import { getAllStoredTransactions, isHistoricalDataAvailable } from "@/lib/mono-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { RefreshCw, ChevronDown, Plus, CalendarIcon, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { RefreshCw, ChevronDown, Plus, CalendarIcon, ArrowUpDown, ArrowUp, ArrowDown, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -31,7 +32,7 @@ import { isExpense } from "@/lib/monobank";
 import { useBudgetStore } from "@/store/budget-store";
 import { cn } from "@/lib/utils";
 import { getCategoryByKey, getAllCategories } from "@/lib/mcc-categories";
-import { getTransactionCategoryKey } from "@/lib/category-utils";
+import { getTransactionCategoryKey, CategoryBudget, TopCategory, comparePeriods, getWarningBadge, calculateCategoryBudgets, getTopCategories } from "@/lib/category-utils";
 
 // Helper functions for financial month calculations
 function getFinancialMonthStart(date: Date, financialDayStart: number): Date {
@@ -116,6 +117,10 @@ export function CategoriesPage() {
   });
   const [calendarOpen, setCalendarOpen] = useState(false);
   
+  // Previous period data for trend comparison
+  const [previousPeriodTotal, setPreviousPeriodTotal] = useState<number>(0);
+  const [isLoadingTrends, setIsLoadingTrends] = useState(false);
+  
   // Update dateRange when financialDayStart changes or on mount
   useEffect(() => {
     const now = new Date();
@@ -123,6 +128,13 @@ export function CategoriesPage() {
     setDateRange({ from: currentFinancialStart, to: now });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [financialDayStart]);
+  
+  // Load previous period when transactions are loaded or date range changes
+  useEffect(() => {
+    if (historicalTransactions.length > 0) {
+      loadPreviousPeriod();
+    }
+  }, [historicalTransactions.length, dateRange, loadPreviousPeriod]);
   
   // Sorting state
   const [categorySortBy, setCategorySortBy] = useState<"amount" | "count" | "name">("amount");
@@ -181,6 +193,32 @@ export function CategoriesPage() {
   useEffect(() => {
     loadFromStorage();
   }, [loadFromStorage]);
+
+  // Load previous period data for trend comparison
+  const loadPreviousPeriod = useCallback(async () => {
+    if (historicalTransactions.length === 0) return;
+    
+    setIsLoadingTrends(true);
+    try {
+      const periodLength = dateRange.to.getTime() - dateRange.from.getTime();
+      const previousFrom = new Date(dateRange.from.getTime() - periodLength);
+      const previousTo = new Date(dateRange.from.getTime() - 1);
+      
+      let previousTotal = 0;
+      historicalTransactions.forEach(tx => {
+        const txDate = new Date(tx.time * 1000);
+        if (txDate >= previousFrom && txDate <= previousTo) {
+          if (isExpense(tx, historicalTransactions) && !excludedTransactionIds.includes(tx.id)) {
+            previousTotal += Math.abs(tx.amount);
+          }
+        }
+      });
+      
+      setPreviousPeriodTotal(previousTotal);
+    } finally {
+      setIsLoadingTrends(false);
+    }
+  }, [historicalTransactions, dateRange, excludedTransactionIds]);
 
   // Calculate category totals
   const categoryData = useMemo(() => {
@@ -248,6 +286,31 @@ export function CategoriesPage() {
       return categorySortOrder === "asc" ? comparison : -comparison;
     });
   }, [historicalTransactions, excludedTransactionIds, customCategories, transactionCategories, dateRange, categorySortBy, categorySortOrder]);
+
+  // ============================================
+  // PHASE 1: CATEGORIES REDESIGN - COMPUTED VALUES
+  // ============================================
+  
+  // Calculate category budgets with progress tracking
+  const categoryBudgets = useMemo((): CategoryBudget[] => {
+    if (categoryData.length === 0) return [];
+    
+    // Use total expenses as budget baseline
+    const totalBudget = totalExpenses * 1.2; // 20% buffer by default
+    
+    return calculateCategoryBudgets(categoryData, totalBudget);
+  }, [categoryData, totalExpenses]);
+  
+  // Get top 3 categories
+  const topCategories = useMemo((): TopCategory[] => {
+    if (categoryData.length === 0) return [];
+    return getTopCategories(categoryData, totalExpenses);
+  }, [categoryData, totalExpenses]);
+  
+  // Overall trend vs previous period
+  const overallTrend = useMemo(() => {
+    return comparePeriods(totalExpenses, previousPeriodTotal);
+  }, [totalExpenses, previousPeriodTotal]);
 
   // Set default selected category
   useEffect(() => {
@@ -427,6 +490,176 @@ export function CategoriesPage() {
         </Card>
       )}
 
+      {/* ============================================ */}
+      {/* PHASE 1: NEW COMPONENTS - TOP CATEGORIES & SUMMARY */}
+      {/* ============================================ */}
+
+      {/* Top 3 Categories Widget */}
+      {topCategories.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <span>🏆</span>
+              <span>Топ категорії</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-3 gap-3">
+              {topCategories.map((cat) => {
+                const positionColors = {
+                  1: "bg-yellow-50 border-yellow-200 text-yellow-800",
+                  2: "bg-gray-50 border-gray-200 text-gray-800",
+                  3: "bg-orange-50 border-orange-200 text-orange-800",
+                };
+                const positionEmojis = { 1: "🥇", 2: "🥈", 3: "🥉" };
+                
+                return (
+                  <div
+                    key={cat.key}
+                    className={cn(
+                      "relative p-3 rounded-xl border-2 transition-all hover:scale-105 cursor-pointer",
+                      positionColors[cat.position]
+                    )}
+                    onClick={() => setSelectedCategory(cat.key)}
+                  >
+                    <div className="absolute -top-2 -right-2 text-lg">
+                      {positionEmojis[cat.position]}
+                    </div>
+                    <div className="text-2xl mb-1">{cat.icon}</div>
+                    <div className="text-xs font-medium truncate">{cat.name}</div>
+                    <div className="text-sm font-bold">
+                      {(cat.amount / 100).toLocaleString("uk-UA")} ₴
+                    </div>
+                    <div className="text-xs opacity-75">{cat.percentage}%</div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Overall Summary with Trend */}
+      {categoryData.length > 0 && (
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-muted-foreground">Загальні витрати</p>
+                <p className="text-2xl font-bold">
+                  {(totalExpenses / 100).toLocaleString("uk-UA")} ₴
+                </p>
+              </div>
+              
+              <div className="flex items-center gap-4">
+                {isLoadingTrends ? (
+                  <div className="animate-pulse h-8 w-24 bg-muted rounded" />
+                ) : (
+                  <div className={cn(
+                    "flex items-center gap-1 px-3 py-1.5 rounded-full",
+                    overallTrend.direction === "up" ? "bg-red-50 text-red-600" :
+                    overallTrend.direction === "down" ? "bg-green-50 text-green-600" :
+                    "bg-gray-50 text-gray-600"
+                  )}>
+                    {overallTrend.direction === "up" ? (
+                      <TrendingUp className="w-4 h-4" />
+                    ) : overallTrend.direction === "down" ? (
+                      <TrendingDown className="w-4 h-4" />
+                    ) : (
+                      <Minus className="w-4 h-4" />
+                    )}
+                    <span className="text-sm font-medium">
+                      {overallTrend.direction === "stable" ? "—" : 
+                       `${overallTrend.direction === "up" ? "+" : "-"}${Math.abs(overallTrend.change)}%`}
+                    </span>
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground text-right">
+                  vs попередній<br />період
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Budget Progress Bars for Categories */}
+      {categoryBudgets.length > 0 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <span>📊</span>
+              <span>Бюджет за категоріями</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {categoryBudgets.slice(0, 6).map((category) => {
+                const badge = getWarningBadge(category.status);
+                const progressColor = 
+                  category.status === "over" ? "bg-red-500" :
+                  category.status === "warning" ? "bg-orange-500" :
+                  "bg-green-500";
+                
+                return (
+                  <div
+                    key={category.key}
+                    className={cn(
+                      "p-3 rounded-lg border transition-all cursor-pointer",
+                      selectedCategory === category.key ? "border-primary bg-muted/50" : "border-border"
+                    )}
+                    onClick={() => setSelectedCategory(category.key)}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">{category.icon}</span>
+                        <span className="font-medium text-sm">{category.name}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className={cn("text-xs", badge.color, badge.bgColor)}>
+                          <span className="mr-1">{badge.icon}</span>
+                          {badge.label}
+                        </Badge>
+                      </div>
+                    </div>
+                    
+                    <div className="relative h-2 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className={cn("absolute h-full rounded-full transition-all", progressColor)}
+                        style={{ width: `${Math.min(category.percentage, 100)}%` }}
+                      />
+                      {category.percentage > 100 && (
+                        <div
+                          className="absolute h-full bg-red-600 rounded-full opacity-50"
+                          style={{ 
+                            width: `${Math.min((category.percentage - 100) / 2, 50)}%`,
+                            left: "50%"
+                          }}
+                        />
+                      )}
+                    </div>
+                    
+                    <div className="flex items-center justify-between mt-1.5 text-xs text-muted-foreground">
+                      <span>
+                        {(category.spent / 100).toLocaleString("uk-UA")} ₴ / {(category.budget / 100).toLocaleString("uk-UA")} ₴
+                      </span>
+                      <span className={cn(
+                        "font-medium",
+                        category.status === "over" ? "text-red-600" :
+                        category.status === "warning" ? "text-orange-500" :
+                        "text-green-600"
+                      )}>
+                        {category.percentage}%
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Pie Chart - Large with hover effects */}
       {categoryData.length > 0 && (
         <Card>
@@ -551,35 +784,62 @@ export function CategoriesPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-1">
+            <div className="space-y-2">
               {categoryData.map((category) => {
                 const percentage = totalExpenses > 0 ? (category.total / totalExpenses) * 100 : 0;
                 const isSelected = selectedCategory === category.key;
+                const budgetInfo = categoryBudgets.find(b => b.key === category.key);
+                const badge = budgetInfo ? getWarningBadge(budgetInfo.status) : null;
+                const progressColor = 
+                  budgetInfo?.status === "over" ? "bg-red-500" :
+                  budgetInfo?.status === "warning" ? "bg-orange-500" :
+                  "bg-green-500";
 
                 return (
-                  <button
+                  <div
                     key={category.key}
-                    onClick={() => setSelectedCategory(category.key)}
                     className={cn(
-                      "w-full flex items-center justify-between p-2 rounded-lg text-sm transition-colors",
-                      isSelected
-                        ? "bg-muted/50"
-                        : "bg-muted/30 hover:bg-muted/40"
+                      "p-3 rounded-lg border transition-all cursor-pointer",
+                      isSelected ? "border-primary bg-muted/50" : "border-border hover:border-muted-foreground/30"
                     )}
+                    onClick={() => setSelectedCategory(category.key)}
                   >
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                      <span className="text-lg">{category.icon}</span>
-                      <div className="flex-1 min-w-0 text-left">
-                        <div className="font-medium truncate">{category.name}</div>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <span className="text-xl">{category.icon}</span>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium truncate flex items-center gap-2">
+                            {category.name}
+                            {badge && (
+                              <Badge variant="outline" className={cn("text-xs px-1.5 py-0", badge.bgColor, badge.color)}>
+                                <span className="mr-1">{badge.icon}</span>
+                                {badge.label}
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {category.count} транзакцій
+                          </div>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="font-bold" style={{ color: category.color }}>
+                          {(category.total / 100).toLocaleString("uk-UA")} ₴
+                        </div>
                         <div className="text-xs text-muted-foreground">
-                          {category.count} транзакцій • {percentage.toFixed(0)}%
+                          {percentage.toFixed(1)}%
                         </div>
                       </div>
                     </div>
-                    <div className="font-bold" style={{ color: category.color }}>
-                      {(category.total / 100).toLocaleString("uk-UA")} ₴
+                    
+                    {/* Progress bar */}
+                    <div className="relative h-1.5 bg-muted rounded-full overflow-hidden">
+                      <div
+                        className={cn("absolute h-full rounded-full transition-all", progressColor)}
+                        style={{ width: `${Math.min(percentage, 100)}%` }}
+                      />
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>
