@@ -11,9 +11,9 @@ interface BudgetSummaryProps {
 export function BudgetSummary({ budget }: BudgetSummaryProps) {
   const isHistorical = budget.isHistorical ?? false;
 
-  // Use current card balance for daily limit (what you can actually spend per day)
-  // Falls back to totalRemaining if currentBalance is not available
-  const availableForDaily = budget.currentBalance ?? budget.totalRemaining;
+  // Use totalRemaining (budget - spent) for daily limit calculation
+  // This correctly shows how much can be spent per day from the remaining budget
+  const availableForDaily = budget.totalRemaining;
   const dailyBudget = budget.daysRemaining > 0
     ? Math.max(0, availableForDaily) / budget.daysRemaining
     : 0;
