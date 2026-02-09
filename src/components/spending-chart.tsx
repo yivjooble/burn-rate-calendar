@@ -6,8 +6,8 @@ import { getAllStoredTransactions, isHistoricalDataAvailable } from "@/lib/mono-
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { 
-  RefreshCw, 
+import {
+  RefreshCw,
   TrendingDown,
   TrendingUp,
   Calendar
@@ -148,7 +148,7 @@ export function SpendingChart({ onRefresh, isLoading }: SpendingChartProps) {
 
     const data: WeekData[] = weeks.map(weekStart => {
       const weekEnd = endOfWeek(weekStart, { weekStartsOn: 1 });
-      
+
       const weekTransactions = historicalTransactions.filter(tx => {
         const txDate = new Date(tx.time * 1000);
         return isWithinInterval(txDate, { start: weekStart, end: weekEnd });
@@ -241,7 +241,7 @@ export function SpendingChart({ onRefresh, isLoading }: SpendingChartProps) {
               {dateRange?.from ? (
                 dateRange.to ? (
                   <>
-                    {format(dateRange.from, "d.MM", { locale: uk })} – {format(dateRange.to, "d.MM.yy", { locale: uk })}
+                    {format(dateRange.from, "d.MM", { locale: uk })} - {format(dateRange.to, "d.MM.yy", { locale: uk })}
                   </>
                 ) : (
                   format(dateRange.from, "d.MM.yy", { locale: uk })
@@ -367,24 +367,24 @@ export function SpendingChart({ onRefresh, isLoading }: SpendingChartProps) {
                   margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis 
-                    dataKey="name" 
+                  <XAxis
+                    dataKey="name"
                     tick={{ fontSize: 12 }}
                     stroke="#9ca3af"
                   />
-                  <YAxis 
+                  <YAxis
                     tick={{ fontSize: 12 }}
                     stroke="#9ca3af"
                     tickFormatter={(value: number) => `${(value / 1000).toFixed(0)}k`}
                   />
-                  <Tooltip 
-                    formatter={(value: number | string, name: string) => [
-                      `${Number(value).toLocaleString("uk-UA")} ₴`,
-                      name
+                  <Tooltip
+                    formatter={(value?: number | string, name?: string) => [
+                      `${Number(value ?? 0).toLocaleString("uk-UA")} ₴`,
+                      name ?? ""
                     ]}
                     itemSorter={(item: TooltipProps<number, string>) => {
                       const order: Record<string, number> = { "Доходи": 0, "Витрати": 1, "Баланс": 2 };
-                      return order[item.name as string] ?? 99;
+                      return order[(item.name as string) ?? ""] ?? 99;
                     }}
                     contentStyle={{
                       backgroundColor: "white",
@@ -393,7 +393,7 @@ export function SpendingChart({ onRefresh, isLoading }: SpendingChartProps) {
                       boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
                     }}
                   />
-                  <Legend 
+                  <Legend
                     content={() => (
                       <div className="flex justify-center gap-6 mt-2">
                         <button
@@ -470,7 +470,7 @@ export function SpendingChart({ onRefresh, isLoading }: SpendingChartProps) {
               Надходження за період
               {dateRange?.from && dateRange?.to && (
                 <Badge variant="outline" className="ml-2 font-normal">
-                  {format(dateRange.from, "dd.MM.yy", { locale: uk })} – {format(dateRange.to, "dd.MM.yy", { locale: uk })}
+                  {format(dateRange.from, "dd.MM.yy", { locale: uk })} - {format(dateRange.to, "dd.MM.yy", { locale: uk })}
                 </Badge>
               )}
             </DialogTitle>
@@ -586,7 +586,7 @@ export function SpendingChart({ onRefresh, isLoading }: SpendingChartProps) {
               Витрати за період
               {dateRange?.from && dateRange?.to && (
                 <Badge variant="outline" className="ml-2 font-normal">
-                  {format(dateRange.from, "dd.MM.yy", { locale: uk })} – {format(dateRange.to, "dd.MM.yy", { locale: uk })}
+                  {format(dateRange.from, "dd.MM.yy", { locale: uk })} - {format(dateRange.to, "dd.MM.yy", { locale: uk })}
                 </Badge>
               )}
             </DialogTitle>

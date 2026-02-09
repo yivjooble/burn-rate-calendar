@@ -464,8 +464,8 @@ export function StatisticsView({ onRefresh, isLoading: externalLoading }: Statis
                   tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`}
                 />
                 <Tooltip
-                  formatter={(value: number): [string, string] => [
-                    `${value.toLocaleString("uk-UA")} ₴`,
+                  formatter={(value?: number): [string, string] => [
+                    `${(value ?? 0).toLocaleString("uk-UA")} ₴`,
                     "Середнє"
                   ]}
                   labelFormatter={(label: string) => {
@@ -600,8 +600,8 @@ export function StatisticsView({ onRefresh, isLoading: externalLoading }: Statis
                     tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`}
                   />
                   <Tooltip
-                    formatter={(value: number, name: string) => [
-                      `${value.toLocaleString("uk-UA")} ₴`,
+                    formatter={(value?: number, name?: string) => [
+                      `${(value ?? 0).toLocaleString("uk-UA")} ₴`,
                       name === "spent" ? "Витрачено" : "Ліміт"
                     ]}
                     contentStyle={{

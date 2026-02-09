@@ -688,9 +688,9 @@ export function CategoriesPage() {
                       ))}
                     </Pie>
                     <Tooltip
-                      formatter={(value: number | string, name: string) => [
-                        `${(Number(value) / 100).toLocaleString("uk-UA")} ₴`,
-                        name
+                      formatter={(value?: number | string, name?: string) => [
+                        `${(Number(value ?? 0) / 100).toLocaleString("uk-UA")} ₴`,
+                        name ?? ""
                       ]}
                       contentStyle={{
                         backgroundColor: "white",
@@ -985,8 +985,8 @@ export function CategoriesPage() {
                     tickFormatter={(value: number) => `${(value / 1000).toFixed(0)}k`}
                   />
                   <Tooltip 
-                    formatter={(value: number | string) => [
-                      `${Number(value).toLocaleString("uk-UA")} ${getCurrencySymbol(selectedCategoryInfo.currencyCode)}`,
+                    formatter={(value?: number | string) => [
+                      `${Number(value ?? 0).toLocaleString("uk-UA")} ${getCurrencySymbol(selectedCategoryInfo.currencyCode)}`,
                       selectedCategoryInfo.name
                     ]}
                     contentStyle={{
