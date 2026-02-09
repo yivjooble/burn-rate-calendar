@@ -68,6 +68,7 @@ export default function Home() {
   const [selectedFinancialMonth, setSelectedFinancialMonth] = useState<Date>(() => new Date());
   const [displayedBudget, setDisplayedBudget] = useState<typeof monthBudget>(null);
   const [isMonthLoading, setIsMonthLoading] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const backgroundSyncRef = useRef<NodeJS.Timeout | null>(null);
   const prevAccountBalanceRef = useRef<number | undefined>(undefined);
 
@@ -322,6 +323,12 @@ export default function Home() {
       }
 
       backgroundSyncRef.current = setInterval(async () => {
+        if (isSyncing) {
+          console.log('Sync already in progress, skipping...');
+          return;
+        }
+
+        setIsSyncing(true);
         try {
           // Refresh account balance
           await refreshAccountBalance();
@@ -329,8 +336,10 @@ export default function Home() {
           await incrementalSync([settings.accountId]);
           await loadFromStorage();
           setLastRefresh(new Date());
-        } catch {
-          // Ignore background sync errors
+        } catch (err) {
+          console.error('Background sync failed:', err);
+        } finally {
+          setIsSyncing(false);
         }
       }, 5 * 60 * 1000); // 5 minutes
     };
@@ -342,7 +351,7 @@ export default function Home() {
         clearInterval(backgroundSyncRef.current);
       }
     };
-  }, [isHydrated, hasMonoToken, settings.accountId, hasHistoricalData, refreshAccountBalance, loadFromStorage]);
+  }, [isHydrated, hasMonoToken, settings.accountId, hasHistoricalData, refreshAccountBalance, loadFromStorage, isSyncing]);
 
   useEffect(() => {
     if (!isHydrated) return;

@@ -269,17 +269,26 @@ export async function incrementalSync(
       );
       newTransactions.push(...transactions);
     } catch (err) {
-      // Handle rate limit
-      if (err instanceof Error && err.message === "RATE_LIMIT") {
-        await new Promise((resolve) => setTimeout(resolve, 61000));
-        // Retry once
-        const transactions = await fetchMonthTransactions(
-          accountId,
-          currencyCode,
-          from,
-          to
-        );
-        newTransactions.push(...transactions);
+      if (err instanceof Error) {
+        if (err.message === "RATE_LIMIT") {
+          console.log(`Rate limit hit for account ${accountId}, retrying...`);
+          await new Promise((resolve) => setTimeout(resolve, 61000));
+          try {
+            const transactions = await fetchMonthTransactions(
+              accountId,
+              currencyCode,
+              from,
+              to
+            );
+            newTransactions.push(...transactions);
+          } catch (retryErr) {
+            console.error(`Failed to sync account ${accountId} after retry:`, retryErr);
+          }
+        } else {
+          console.error(`Failed to sync account ${accountId}:`, err.message);
+        }
+      } else {
+        console.error(`Unknown error syncing account ${accountId}:`, err);
       }
     }
   }
