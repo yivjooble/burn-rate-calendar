@@ -124,3 +124,12 @@ export interface InflationPrediction {
   }[];
   confidence: number;
 }
+
+// Custom category for transaction organization
+export interface CustomCategory {
+  id: string;
+  name: string;
+  color?: string;
+  icon?: string;
+  createdAt?: number;
+}
