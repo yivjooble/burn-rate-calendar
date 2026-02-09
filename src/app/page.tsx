@@ -5,6 +5,7 @@ import { useBudgetStore } from "@/store/budget-store";
 import { BudgetCalendar } from "@/components/budget-calendar";
 import { BudgetSummary } from "@/components/budget-summary";
 import { SpendingChart } from "@/components/spending-chart";
+import { StatisticsView } from "@/components/statistics-view";
 import { SettingsPanel } from "@/components/settings-panel";
 import { TwoFactorSettings } from "@/components/two-factor-settings";
 import { DayDetailModal } from "@/components/day-detail-modal";
@@ -38,7 +39,7 @@ import {
 } from "@/components/ui/dialog";
 import { useSession, signOut } from "next-auth/react";
 
-type TabType = "calendar" | "prediction" | "categories" | "settings";
+type TabType = "calendar" | "statistics" | "categories" | "settings";
 
 export default function Home() {
   const { data: session } = useSession();
@@ -91,7 +92,7 @@ export default function Home() {
   // Load active tab from localStorage and init from DB on mount
   useEffect(() => {
     const savedTab = localStorage.getItem("burn-rate-active-tab") as TabType | null;
-    if (savedTab && ["calendar", "prediction", "categories", "settings"].includes(savedTab)) {
+    if (savedTab && ["calendar", "statistics", "categories", "settings"].includes(savedTab)) {
       setActiveTab(savedTab);
     }
     // Initialize from SQLite DB
@@ -517,9 +518,9 @@ export default function Home() {
               Категорії
             </Button>
             <Button
-              variant={activeTab === "prediction" ? "default" : "ghost"}
+              variant={activeTab === "statistics" ? "default" : "ghost"}
               size="sm"
-              onClick={() => setActiveTab("prediction")}
+              onClick={() => setActiveTab("statistics")}
               disabled={isLoading || isHistoricalLoading}
             >
               <ChartLine className="w-4 h-4 mr-1" />
@@ -694,8 +695,8 @@ export default function Home() {
             </div>
           )}
 
-          {activeTab === "prediction" && (
-            <SpendingChart onRefresh={fetchMonoData} isLoading={isLoading} />
+          {activeTab === "statistics" && (
+            <StatisticsView />
           )}
 
           {activeTab === "categories" && (
@@ -739,10 +740,10 @@ export default function Home() {
             <span className="text-[10px]">Категорії</span>
           </button>
           <button
-            onClick={() => setActiveTab("prediction")}
+            onClick={() => setActiveTab("statistics")}
             disabled={isLoading || isHistoricalLoading}
             className={`flex flex-col items-center justify-center gap-1 transition-colors ${
-              activeTab === "prediction"
+              activeTab === "statistics"
                 ? "text-foreground"
                 : "text-muted-foreground"
             }`}
