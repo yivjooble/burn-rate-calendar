@@ -99,18 +99,23 @@ export async function POST(request: Request) {
     const body = await request.json();
 
     if (type === "meta") {
+      console.log("[API] Saving meta for user:", userId, "data:", body);
       // Validate meta input
       const validatedMeta = validateInput(historicalMetaSchema, body);
       if (validatedMeta.lastSyncTime !== undefined) {
+        console.log("[API] Setting lastSyncTime:", validatedMeta.lastSyncTime);
         await setUserSetting(userId, "lastSyncTime", String(validatedMeta.lastSyncTime ?? ""));
       }
       if (validatedMeta.historicalDataLoaded !== undefined) {
+        console.log("[API] Setting historicalDataLoaded:", validatedMeta.historicalDataLoaded);
         await setUserSetting(userId, "historicalDataLoaded", String(validatedMeta.historicalDataLoaded));
       }
       if (validatedMeta.historicalFromTime !== undefined) {
+        console.log("[API] Setting historicalFromTime:", validatedMeta.historicalFromTime);
         await setUserSetting(userId, "historicalFromTime", String(validatedMeta.historicalFromTime ?? ""));
       }
       if (validatedMeta.historicalToTime !== undefined) {
+        console.log("[API] Setting historicalToTime:", validatedMeta.historicalToTime);
         await setUserSetting(userId, "historicalToTime", String(validatedMeta.historicalToTime ?? ""));
       }
       return NextResponse.json({ success: true });

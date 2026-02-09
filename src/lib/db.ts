@@ -463,11 +463,16 @@ export async function setUserSetting(
   key: string,
   value: string
 ): Promise<void> {
-  await prisma.userSetting.upsert({
-    where: { userId_key: { userId, key } },
-    update: { value },
-    create: { userId, key, value },
-  });
+  try {
+    await prisma.userSetting.upsert({
+      where: { userId_key: { userId, key } },
+      update: { value },
+      create: { userId, key, value },
+    });
+  } catch (error) {
+    console.error(`[DB] Failed to save setting ${key} for user ${userId}:`, error);
+    throw new Error(`Failed to save setting: ${key}`);
+  }
 }
 
 export async function getAllUserSettings(
