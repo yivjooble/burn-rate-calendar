@@ -228,11 +228,80 @@ export async function refreshTodayTransactions(
   return todayTransactions;
 }
 
+export async function incrementalSync(
+  accountIds: string[],
+  onProgress?: (progress: SyncProgress) => void
+): Promise<Transaction[]> {
+  const lastSync = await getLastSyncTime();
+
+  // If no lastSync or it's older than 30 days - fallback to full load
+  if (!lastSync || Date.now() - lastSync > 30 * 24 * 60 * 60 * 1000) {
+    return loadHistoricalData(accountIds, onProgress);
+  }
+
+  // Load only new transactions from lastSync to now
+  const from = Math.floor(lastSync / 1000);
+  const to = Math.floor(Date.now() / 1000);
+
+  const accountCurrencies = await fetchAccountCurrencies();
+  const newTransactions: Transaction[] = [];
+
+  for (let i = 0; i < accountIds.length; i++) {
+    const accountId = accountIds[i];
+    const currencyCode = accountCurrencies[accountId] || 980;
+
+    // Rate limit: wait 61s between accounts
+    if (i > 0) {
+      onProgress?.({
+        current: i,
+        total: accountIds.length,
+        message: `Очікування rate limit... (${i}/${accountIds.length})`,
+      });
+      await new Promise((resolve) => setTimeout(resolve, 61000));
+    }
+
+    try {
+      const transactions = await fetchMonthTransactions(
+        accountId,
+        currencyCode,
+        from,
+        to
+      );
+      newTransactions.push(...transactions);
+    } catch (err) {
+      // Handle rate limit
+      if (err instanceof Error && err.message === "RATE_LIMIT") {
+        await new Promise((resolve) => setTimeout(resolve, 61000));
+        // Retry once
+        const transactions = await fetchMonthTransactions(
+          accountId,
+          currencyCode,
+          from,
+          to
+        );
+        newTransactions.push(...transactions);
+      }
+    }
+  }
+
+  // Delete overlapping period (from lastSync) to avoid duplicates
+  await deleteTransactionsAfter(from);
+
+  // Save new transactions
+  if (newTransactions.length > 0) {
+    await saveTransactions(newTransactions);
+  }
+
+  await setLastSyncTime(Date.now());
+  return newTransactions;
+}
+
 export async function syncTransactions(
   accountIds: string[],
   onProgress?: (progress: SyncProgress) => void
 ): Promise<SyncResult> {
   const isHistoricalLoaded = await getHistoricalDataLoaded();
+  const lastSync = await getLastSyncTime();
 
   if (!isHistoricalLoaded) {
     // First time - load all historical data (token retrieved from DB via proxy)
@@ -240,8 +309,16 @@ export async function syncTransactions(
     return { transactions, isInitialLoad: true };
   }
 
-  // Just refresh today's transactions
-  await refreshTodayTransactions(accountIds);
+  // If lastSync was today - just refresh today
+  const todayStart = startOfDay(new Date()).getTime();
+  if (lastSync && lastSync >= todayStart) {
+    await refreshTodayTransactions(accountIds);
+    const allTransactions = await getAllTransactions();
+    return { transactions: allTransactions, isInitialLoad: false };
+  }
+
+  // Otherwise - incremental sync (from lastSync to now)
+  await incrementalSync(accountIds, onProgress);
   const allTransactions = await getAllTransactions();
   return { transactions: allTransactions, isInitialLoad: false };
 }

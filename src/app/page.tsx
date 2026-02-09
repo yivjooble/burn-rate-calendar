@@ -18,6 +18,7 @@ import {
 } from "@/lib/historical-budget";
 import {
   refreshTodayTransactions,
+  incrementalSync,
   getAllStoredTransactions,
   isHistoricalDataAvailable,
   getLastSync,
@@ -131,7 +132,7 @@ export default function Home() {
 
   // Save daily budgets to database
   // When forceUpdate is true, overwrite all days (used when budget is manually changed)
-  const saveDailyBudgets = useCallback(async (budget: any, forceUpdate: boolean = false) => {
+  const saveDailyBudgets = useCallback(async (budget: { dailyLimits: DayBudget[] }, forceUpdate: boolean = false) => {
     if (!session?.user?.id) return;
 
     try {
@@ -311,7 +312,7 @@ export default function Home() {
     }
   }, [isHydrated, hasHistoricalData, hasMonoToken, settings.accountId, refreshAccountBalance, loadFromStorage, setLoading]);
 
-  // Background sync every 5 minutes - refresh balance and transactions
+  // Background sync every 5 minutes using incremental sync
   useEffect(() => {
     if (!isHydrated || !hasMonoToken || !hasHistoricalData || !settings.accountId) return;
 
@@ -324,8 +325,8 @@ export default function Home() {
         try {
           // Refresh account balance
           await refreshAccountBalance();
-          // Refresh today's transactions
-          await refreshTodayTransactions([settings.accountId]);
+          // Incremental sync for new transactions
+          await incrementalSync([settings.accountId]);
           await loadFromStorage();
           setLastRefresh(new Date());
         } catch {
