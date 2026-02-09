@@ -88,6 +88,23 @@ Personal finance tracker with Monobank integration. Track your daily spending ag
 
 Open [http://localhost:3000](http://localhost:3000).
 
+## Deployment
+
+Manual deployment via Railway CLI:
+
+```bash
+# Login to Railway
+railway login
+
+# Link to project (one-time)
+railway link
+
+# Deploy
+railway up
+```
+
+Deployment відбувається вручну. GitHub Actions вимкнено.
+
 ## Deploy on Railway
 
 ### Quick Deploy
