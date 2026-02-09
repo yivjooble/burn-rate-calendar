@@ -1,58 +1,28 @@
-import { render, waitFor } from "@testing-library/react";
-import { SWRConfig } from "swr";
-import { screen } from "@testing-library/dom";
+import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi } from "vitest";
 
-// Mock the settings page component for testing
-jest.mock("@/app/page", () => {
-  return function MockSettingsPage() {
-    return <div data-testid="settings-page">Settings Page</div>;
-  };
-});
+// Mock SWR to prevent async issues
+vi.mock("swr", () => ({
+  SWRConfig: ({ children }: { children: React.ReactNode }) => children,
+  useSWRConfig: vi.fn(() => ({ mutate: vi.fn() })),
+}));
 
-// Add JSX type declaration for the mock
-declare global {
-  namespace JSX {
-    interface IntrinsicElements {
-      div: React.DetailedHTMLProps<React.HTMLAttributes<HTMLDivElement>, HTMLDivElement>;
-    }
-  }
+// Simple test component
+function MockSettingsPage() {
+  return <div data-testid="settings-page">Settings Page</div>;
 }
 
 describe("Multi-device sync", () => {
-  it("should sync settings across devices", async () => {
-    // Device 1: Update settings
-    const { rerender } = render(
-      <SWRConfig value={{ provider: () => new Map() }}>
-        <div data-testid="settings-page">Settings Page</div>
-      </SWRConfig>
-    );
-    
-    // Simulate settings update on device 1
-    // In real implementation, this would call updateSettings from useOptimisticSettings
-    
-    // Device 2: Should receive update after refresh interval
-    rerender(
-      <SWRConfig value={{ provider: () => new Map() }}>
-        <div data-testid="settings-page">Settings Page</div>
-      </SWRConfig>
-    );
-    
-    // Settings should be synced within SWR refresh interval (30 seconds)
-    await waitFor(() => {
-      expect(screen.getByTestId("settings-page")).toBeInTheDocument();
-    }, { timeout: 35000 }); // 30s refresh + 5s buffer
+  it("should render settings page component", () => {
+    render(<MockSettingsPage />);
+    expect(screen.getByTestId("settings-page")).toBeInTheDocument();
   });
 
-  it("should handle concurrent sync attempts", async () => {
-    const { rerender } = render(
-      <SWRConfig value={{ provider: () => new Map() }}>
-        <div data-testid="settings-page">Settings Page</div>
-      </SWRConfig>
-    );
+  it("should handle rerender correctly", () => {
+    const { rerender } = render(<MockSettingsPage />);
+    expect(screen.getByTestId("settings-page")).toBeInTheDocument();
     
-    // Multiple rapid sync attempts should be deduplicated
-    await waitFor(() => {
-      expect(screen.getByTestId("settings-page")).toBeInTheDocument();
-    });
+    rerender(<MockSettingsPage />);
+    expect(screen.getByTestId("settings-page")).toBeInTheDocument();
   });
 });

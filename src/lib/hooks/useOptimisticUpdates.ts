@@ -31,10 +31,13 @@ export function useOptimisticSettings() {
 
       // Step 1: Optimistic update - immediately update cache
       await mutateSettings(
-        (current: UserSettings | undefined) => ({
-          ...current,
-          ...newSettings,
-        }),
+        (current: UserSettings | undefined) => {
+          if (!current) return newSettings as UserSettings;
+          return {
+            ...current,
+            ...newSettings,
+          };
+        },
         false // Don't revalidate yet
       );
 
@@ -350,6 +353,7 @@ export function useRealTimeBalance() {
           // Optimistically update settings
           await mutateSettings(
             {
+              ...settings,
               accountBalance: account.balance,
               accountCurrency: account.currencyCode,
             },
