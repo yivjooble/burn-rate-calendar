@@ -74,7 +74,7 @@ async function fetchMonthTransactions(
   });
 
   if (response.status === 429) {
-    throw new Error("RATE_LIMIT");
+    throw new Error("Занадто багато запитів. Monobank дозволяє 1 запит на хвилину. Зачекайте 1 хвилину.");
   }
 
   if (!response.ok) {
@@ -149,7 +149,7 @@ export async function loadHistoricalData(
         allTransactions.push(...transactions);
         completedRequests++;
       } catch (err) {
-        if (err instanceof Error && err.message === "RATE_LIMIT") {
+        if (err instanceof Error && err.message.includes("Занадто багато запитів")) {
           // Wait and retry
           await new Promise((resolve) => setTimeout(resolve, 61000));
           try {
@@ -203,7 +203,7 @@ export async function refreshTodayTransactions(
 
     // Small delay between accounts to avoid rate limit
     if (i > 0) {
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      await new Promise((resolve) => setTimeout(resolve, 61000));
     }
 
     try {
@@ -214,8 +214,24 @@ export async function refreshTodayTransactions(
         to
       );
       todayTransactions.push(...transactions);
-    } catch {
-      // Ignore errors for individual accounts
+    } catch (err) {
+      if (err instanceof Error && err.message.includes("Занадто багато запитів")) {
+        console.log(`Rate limit hit for ${accountId}, waiting 61s and retrying...`);
+        await new Promise((resolve) => setTimeout(resolve, 61000));
+        try {
+          const transactions = await fetchMonthTransactions(
+            accountId,
+            currencyCode,
+            from,
+            to
+          );
+          todayTransactions.push(...transactions);
+        } catch (retryErr) {
+          console.error(`Failed after retry for ${accountId}:`, retryErr);
+        }
+      } else {
+        // Ignore errors for individual accounts
+      }
     }
   }
 
@@ -269,26 +285,22 @@ export async function incrementalSync(
       );
       newTransactions.push(...transactions);
     } catch (err) {
-      if (err instanceof Error) {
-        if (err.message === "RATE_LIMIT") {
-          console.log(`Rate limit hit for account ${accountId}, retrying...`);
-          await new Promise((resolve) => setTimeout(resolve, 61000));
-          try {
-            const transactions = await fetchMonthTransactions(
-              accountId,
-              currencyCode,
-              from,
-              to
-            );
-            newTransactions.push(...transactions);
-          } catch (retryErr) {
-            console.error(`Failed to sync account ${accountId} after retry:`, retryErr);
-          }
-        } else {
-          console.error(`Failed to sync account ${accountId}:`, err.message);
+      if (err instanceof Error && err.message.includes("Занадто багато запитів")) {
+        console.log(`Rate limit hit for account ${accountId}, retrying...`);
+        await new Promise((resolve) => setTimeout(resolve, 61000));
+        try {
+          const transactions = await fetchMonthTransactions(
+            accountId,
+            currencyCode,
+            from,
+            to
+          );
+          newTransactions.push(...transactions);
+        } catch (retryErr) {
+          console.error(`Failed to sync account ${accountId} after retry:`, retryErr);
         }
       } else {
-        console.error(`Unknown error syncing account ${accountId}:`, err);
+        console.error(`Failed to sync account ${accountId}:`, err.message);
       }
     }
   }

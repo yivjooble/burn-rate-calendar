@@ -103,6 +103,7 @@ export function CategoriesPage() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [refreshCooldown, setRefreshCooldown] = useState<number | null>(null);
   const [newCategoryDialogOpen, setNewCategoryDialogOpen] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
   const [newCategoryIcon, setNewCategoryIcon] = useState("📁");
@@ -193,6 +194,11 @@ export function CategoriesPage() {
 
   // Load transactions from IndexedDB (no API calls needed)
   const loadFromStorage = useCallback(async () => {
+    if (refreshCooldown !== null) {
+      setError(`Зачекайте ${refreshCooldown} сек. перед наступним оновленням`);
+      return;
+    }
+
     setLoadingHistory(true);
     setGlobalLoading(true);
     setError(null);
@@ -207,13 +213,25 @@ export function CategoriesPage() {
       const allTransactions = await getAllStoredTransactions();
       setHistoricalTransactions(allTransactions);
       setError(null);
+
+      // Cooldown 60 seconds
+      let secondsLeft = 60;
+      setRefreshCooldown(secondsLeft);
+      const interval = setInterval(() => {
+        secondsLeft--;
+        setRefreshCooldown(secondsLeft);
+        if (secondsLeft <= 0) {
+          clearInterval(interval);
+          setRefreshCooldown(null);
+        }
+      }, 1000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Помилка завантаження даних");
     } finally {
       setLoadingHistory(false);
       setGlobalLoading(false);
     }
-  }, [setGlobalLoading]);
+  }, [setGlobalLoading, refreshCooldown]);
 
   // Load data from IndexedDB on mount
   useEffect(() => {
@@ -469,10 +487,12 @@ export function CategoriesPage() {
                 size="sm"
                 className="h-7"
                 onClick={loadFromStorage}
-                disabled={loadingHistory}
+                disabled={loadingHistory || refreshCooldown !== null}
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${loadingHistory ? "animate-spin" : ""}`} />
-                <span className="ml-1.5 text-xs">{loadingHistory ? "..." : "Оновити"}</span>
+                <span className="ml-1.5 text-xs">
+                  {refreshCooldown !== null ? `${refreshCooldown}с` : loadingHistory ? "..." : "Оновити"}
+                </span>
               </Button>
             </div>
           </CardTitle>
