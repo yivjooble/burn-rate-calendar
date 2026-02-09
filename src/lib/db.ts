@@ -878,3 +878,162 @@ export async function deleteUserDailyBudgetsAfter(
     },
   });
 }
+
+// =============================================================================
+// USER CATEGORIES
+// =============================================================================
+
+export interface DbUserCategory {
+  id: string;
+  user_id: string;
+  name: string;
+  color: string | null;
+  icon: string | null;
+  created_at: Date;
+}
+
+export async function getUserCategories(
+  userId: string
+): Promise<DbUserCategory[]> {
+  const categories = await prisma.userCategory.findMany({
+    where: { userId },
+    orderBy: { createdAt: "asc" },
+  });
+
+  return categories.map((c) => ({
+    id: c.id,
+    user_id: c.userId,
+    name: c.name,
+    color: c.color,
+    icon: c.icon,
+    created_at: c.createdAt,
+  }));
+}
+
+export async function saveUserCategories(
+  userId: string,
+  categories: Array<{ id: string; name: string; color?: string; icon?: string }>
+): Promise<void> {
+  // Ensure user exists
+  await prisma.user.upsert({
+    where: { id: userId },
+    update: {},
+    create: {
+      id: userId,
+      email: `user_${userId}@placeholder.local`,
+      passwordHash: "",
+      passwordSalt: "",
+    },
+  });
+
+  // Delete existing categories
+  await prisma.userCategory.deleteMany({ where: { userId } });
+
+  // Create new categories
+  if (categories.length > 0) {
+    await prisma.$transaction(
+      categories.map((cat) =>
+        prisma.userCategory.create({
+          data: {
+            id: cat.id,
+            userId,
+            name: cat.name,
+            color: cat.color || null,
+            icon: cat.icon || null,
+          },
+        })
+      )
+    );
+  }
+}
+
+export async function addUserCategory(
+  userId: string,
+  category: { id: string; name: string; color?: string; icon?: string }
+): Promise<DbUserCategory> {
+  const created = await prisma.userCategory.create({
+    data: {
+      id: category.id,
+      userId,
+      name: category.name,
+      color: category.color || null,
+      icon: category.icon || null,
+    },
+  });
+
+  return {
+    id: created.id,
+    user_id: created.userId,
+    name: created.name,
+    color: created.color,
+    icon: created.icon,
+    created_at: created.createdAt,
+  };
+}
+
+export async function deleteUserCategory(
+  userId: string,
+  categoryId: string
+): Promise<void> {
+  await prisma.userCategory.deleteMany({
+    where: { id: categoryId, userId },
+  });
+}
+
+// =============================================================================
+// TRANSACTION CATEGORIES
+// =============================================================================
+
+export interface DbTransactionCategory {
+  id: string;
+  transaction_id: string;
+  user_id: string;
+  category_id: string | null;
+  comment: string | null;
+  created_at: Date;
+}
+
+export async function getTransactionCategories(
+  userId: string
+): Promise<Record<string, { categoryId?: string; comment?: string }>> {
+  const rows = await prisma.transactionCategory.findMany({
+    where: { userId },
+  });
+
+  return Object.fromEntries(
+    rows.map((row) => [
+      row.transactionId,
+      {
+        categoryId: row.categoryId || undefined,
+        comment: row.comment || undefined,
+      },
+    ])
+  );
+}
+
+export async function setTransactionCategory(
+  userId: string,
+  transactionId: string,
+  categoryId: string | null,
+  comment?: string
+): Promise<void> {
+  await prisma.transactionCategory.upsert({
+    where: {
+      transactionId_userId: {
+        transactionId,
+        userId,
+      },
+    },
+    update: {
+      categoryId,
+      comment: comment || null,
+    },
+    create: {
+      id: `tc_${transactionId}`,
+      transactionId,
+      userId,
+      categoryId,
+      comment: comment || null,
+    },
+  });
+}

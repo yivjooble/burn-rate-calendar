@@ -114,6 +114,42 @@ model UserDailyBudget {
   @@map("user_daily_budgets")
 }
 
+// User-defined categories for transaction organization
+model UserCategory {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  name      String
+  color     String?
+  icon      String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactionCategories TransactionCategory[]
+
+  @@index([userId])
+  @@map("user_categories")
+}
+
+// Category assignments and comments for transactions
+model TransactionCategory {
+  id            String   @id @default(cuid())
+  transactionId String   @map("transaction_id")
+  userId        String   @map("user_id")
+  categoryId    String?  @map("category_id")
+  comment       String?
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category UserCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@unique([transactionId, userId])
+  @@index([userId])
+  @@index([categoryId])
+  @@map("transaction_categories")
+}
+
 // Legacy tables for backward compatibility during migration
 // These can be removed after full migration
 
