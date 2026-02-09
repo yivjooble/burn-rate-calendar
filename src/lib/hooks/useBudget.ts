@@ -90,84 +90,10 @@ export function useCategories() {
 }
 
 // =============================================================================
-// Optimistic Update Functions
+// Optimistic Update Functions - REMOVED
 // =============================================================================
-
-/**
- * Optimistically update settings
- * Immediately updates local cache, then syncs to server
- */
-export async function updateSettingsOptimistic(
-  newSettings: Partial<UserSettings>,
-  mutateSettings: (settings: UserSettings | false) => Promise<void>
-) {
-  // Get current settings for optimistic update
-  const { settings: currentSettings } = useSettings();
-  
-  // Create optimistic settings
-  const optimisticSettings: UserSettings = {
-    ...currentSettings,
-    ...newSettings,
-  };
-
-  // Optimistically update
-  await mutateSettings(optimisticSettings);
-
-  try {
-    // Send to server
-    const response = await fetch("/api/db/user-settings", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ settings: newSettings }),
-      credentials: "include",
-    });
-
-    if (!response.ok) {
-      throw new Error("Failed to save settings");
-    }
-
-    // Revalidate from server
-    await mutate("/api/db/user-settings");
-  } catch (error) {
-    console.error("Failed to save settings:", error);
-    // Revert on error (revalidate will fetch fresh data)
-    await mutate("/api/db/user-settings");
-    throw error;
-  }
-}
-
-/**
- * Optimistically update categories
- */
-export async function updateCategoriesOptimistic(
-  newCategories: CustomCategory[],
-  mutateCategories: (categories: CustomCategory[] | false) => Promise<void>
-) {
-  // Optimistically update
-  await mutateCategories(newCategories);
-
-  try {
-    // Send to server
-    const response = await fetch("/api/db/categories", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ categories: newCategories }),
-      credentials: "include",
-    });
-
-    if (!response.ok) {
-      throw new Error("Failed to save categories");
-    }
-
-    // Revalidate from server
-    await mutate("/api/db/categories");
-  } catch (error) {
-    console.error("Failed to save categories:", error);
-    // Revert on error
-    await mutate("/api/db/categories");
-    throw error;
-  }
-}
+// The old updateSettingsOptimistic function used useSettings() inside an async function,
+// which is a React hooks violation. Use the hook-based approach in useOptimisticUpdates.ts instead.
 
 /**
  * Trigger budget recalculation

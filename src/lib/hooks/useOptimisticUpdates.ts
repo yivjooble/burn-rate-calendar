@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { mutate } from "swr";
+import { toast } from "sonner";
 import { useSettings, useBudget, useCategories } from "@/lib/hooks/useBudget";
-import { UserSettings, CustomCategory } from "@/types";
+import { UserSettings, CustomCategory, MonthBudget } from "@/types";
 
 // =============================================================================
 // OPTIMISTIC UPDATE EXAMPLES
@@ -58,6 +59,7 @@ export function useOptimisticSettings() {
       } catch (error) {
         // Step 4: Rollback on error
         console.error("Failed to update settings:", error);
+        toast.error("Не вдалося зберегти налаштування");
         await mutateSettings(previousSettings, false);
         await mutateSettings(); // Revalidate from server
         throw error;
@@ -131,6 +133,7 @@ export function useOptimisticCategories() {
       } catch (error) {
         // Step 4: Rollback
         console.error("Failed to update categories:", error);
+        toast.error("Не вдалося зберегти категорії");
         await mutateCategories(previousCategories, false);
         await mutateCategories();
         throw error;
@@ -155,16 +158,14 @@ export function useOptimisticTransactionExclusion() {
     async (transactionId: string) => {
       if (!budget) return;
 
-      // Step 1: Calculate new budget without the transaction
+      // Find the transaction to calculate spent change
+      let spentChange = 0;
+      
       const newDailyLimits = budget.dailyLimits.map((day) => {
-        // Find if transaction belongs to this day
-        const hasTransaction = day.transactions?.some(
-          (tx) => tx.id === transactionId
-        );
+        const tx = day.transactions?.find((t) => t.id === transactionId);
         
-        if (hasTransaction) {
-          const tx = day.transactions.find((tx) => tx.id === transactionId);
-          const spentChange = tx?.amount || 0;
+        if (tx) {
+          spentChange = Math.abs(tx.amount);
           
           return {
             ...day,
@@ -176,10 +177,11 @@ export function useOptimisticTransactionExclusion() {
         return day;
       });
 
-      const newBudget = {
+      // ✅ FIX: Recalculate totals
+      const newBudget: MonthBudget = {
         ...budget,
-        totalSpent: budget.totalSpent, // Would need recalculation
-        totalRemaining: budget.totalRemaining, // Would need recalculation
+        totalSpent: budget.totalSpent - spentChange,
+        totalRemaining: budget.totalRemaining + spentChange,
         dailyLimits: newDailyLimits,
       };
 
@@ -199,6 +201,7 @@ export function useOptimisticTransactionExclusion() {
         await mutateBudget();
       } catch (error) {
         console.error("Failed to exclude transaction:", error);
+        toast.error("Не вдалося виключити транзакцію");
         await mutateBudget(); // Rollback via revalidation
         throw error;
       }
@@ -210,8 +213,35 @@ export function useOptimisticTransactionExclusion() {
     async (transactionId: string) => {
       if (!budget) return;
 
-      // Similar optimistic update for including transactions
-      await mutateBudget(); // For now, just revalidate
+      // Find the transaction to calculate spent change
+      let spentChange = 0;
+      
+      const newDailyLimits = budget.dailyLimits.map((day) => {
+        const tx = day.transactions?.find((t) => t.id === transactionId);
+        
+        if (tx) {
+          spentChange = Math.abs(tx.amount);
+          
+          return {
+            ...day,
+            spent: day.spent + spentChange,
+            remaining: day.limit - (day.spent + spentChange),
+          };
+        }
+        
+        return day;
+      });
+
+      // Recalculate totals
+      const newBudget: MonthBudget = {
+        ...budget,
+        totalSpent: budget.totalSpent + spentChange,
+        totalRemaining: budget.totalRemaining - spentChange,
+        dailyLimits: newDailyLimits,
+      };
+
+      // Optimistically update
+      await mutateBudget(newBudget, false);
 
       try {
         await fetch("/api/db/excluded", {
@@ -224,6 +254,7 @@ export function useOptimisticTransactionExclusion() {
         await mutateBudget();
       } catch (error) {
         console.error("Failed to include transaction:", error);
+        toast.error("Не вдалося включити транзакцію");
         await mutateBudget();
         throw error;
       }
@@ -239,14 +270,24 @@ export function useOptimisticTransactionExclusion() {
  * 
  * After syncing data from Monobank, trigger SWR revalidation
  * to update all clients in real-time
+ * 
+ * ✅ FIX: Added race condition guards with isSyncing state
  */
 export function useBackgroundSync() {
+  const [isSyncing, setIsSyncing] = useState(false);
   const { mutate: mutateSettings } = useSettings();
   const { mutate: mutateBudget } = useBudget();
   const { mutate: mutateCategories } = useCategories();
 
   const performSync = useCallback(
     async (accountId: string) => {
+      // Guard: skip if already syncing
+      if (isSyncing) {
+        console.log('Sync already in progress, skipping...');
+        return false;
+      }
+
+      setIsSyncing(true);
       try {
         // Import sync functions dynamically
         const { refreshTodayTransactions, incrementalSync } = await import(
@@ -268,12 +309,14 @@ export function useBackgroundSync() {
       } catch (error) {
         console.error("Background sync failed:", error);
         return false;
+      } finally {
+        setIsSyncing(false);
       }
     },
-    [mutateSettings, mutateBudget, mutateCategories]
+    [isSyncing, mutateSettings, mutateBudget, mutateCategories]
   );
 
-  return { performSync };
+  return { performSync, isSyncing };
 }
 
 /**
@@ -319,6 +362,7 @@ export function useRealTimeBalance() {
       }
     } catch (error) {
       console.error("Failed to refresh balance:", error);
+      toast.error("Не вдалося оновити баланс");
     }
   }, [settings?.accountId, mutateSettings, mutateBudget]);
 
