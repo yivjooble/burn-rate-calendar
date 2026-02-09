@@ -37,6 +37,8 @@ model User {
   excludedTransactions UserExcludedTransaction[]
   includedTransactions UserIncludedTransaction[]
   dailyBudgets         UserDailyBudget[]
+  userCategories       UserCategory[]
+  transactionCategories TransactionCategory[]
 
   @@map("users")
 }
