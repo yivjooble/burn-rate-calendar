@@ -383,7 +383,7 @@ export function SpendingChart({ onRefresh, isLoading }: SpendingChartProps) {
                       `${Number(value ?? 0).toLocaleString("uk-UA")} ₴`,
                       name ?? ""
                     ]}
-                    itemSorter={(item: Payload<number, string>) => {
+                    itemSorter={(item: Payload<string | number, string>) => {
                       const order: Record<string, number> = { "Доходи": 0, "Витрати": 1, "Баланс": 2 };
                       return order[item.name as string] ?? 99;
                     }}
