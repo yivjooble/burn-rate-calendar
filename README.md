@@ -2,6 +2,44 @@
 
 Personal finance tracker with Monobank integration. Track your daily spending against your budget.
 
+## ✨ Features
+
+### Real-time Multi-device Sync (v2.0.0)
+- 🔄 **Auto-refresh** - Data updates every 10 seconds automatically
+- 📱 **Multi-device** - Same data on phone, tablet, and desktop
+- ⚡ **Optimistic UI** - Instant updates without waiting for server
+- 🔔 **Toast notifications** - User-friendly error messages
+- 🎨 **Loading states** - Smooth skeleton screens
+
+### Budget Management
+- 📊 Track daily/monthly spending against budget
+- 💳 Monobank integration for automatic transaction sync
+- 📈 Visual charts and progress indicators
+
+## 🏗️ Architecture
+
+### Frontend
+- Next.js 16.1.1 (App Router)
+- SWR 2.2.5 (data fetching & caching)
+- Sonner 1.4.0 (toast notifications)
+- Tailwind CSS 4 (styling)
+
+### Backend
+- PostgreSQL (Prisma ORM)
+- NextAuth.js v5 (authentication)
+- Monobank API (transaction sync)
+
+### Real-time Architecture
+```
+┌─────────────┐     ┌──────────────┐     ┌──────────┐
+│   Browser   │────▶│  SWR Cache   │────▶│   API    │
+│  (Client)   │◀────│  (10s poll)  │◀────│ Endpoints│
+└─────────────┘     └──────────────┘     └──────────┘
+      │                                         │
+      │             Optimistic Updates          │
+      └─────────────────────────────────────────┘
+```
+
 ## Tech Stack
 
 - **Framework**: Next.js 16 with React 19
@@ -90,6 +128,29 @@ npx prisma migrate deploy  # in production
 | `ENCRYPTION_KEY` | ✅ | 32-byte hex key for encrypting Monobank tokens |
 | `NEXTAUTH_SECRET` | ✅ | Secret for JWT signing |
 | `NEXTAUTH_URL` | ✅ (prod) | Your app's public URL |
+| `NEXT_PUBLIC_FEATURE_SWR_BUDGET` | ❌ | Enable SWR for budget (default: true) |
+| `NEXT_PUBLIC_FEATURE_SWR_SETTINGS` | ❌ | Enable SWR for settings (default: true) |
+| `NEXT_PUBLIC_FEATURE_SWR_CATEGORIES` | ❌ | Enable SWR for categories (default: true) |
+| `NEXT_PUBLIC_FEATURE_OPTIMISTIC` | ❌ | Enable optimistic UI updates (default: true) |
+| `NEXT_PUBLIC_FEATURE_REALTIME` | ❌ | Enable real-time sync (default: true) |
+
+### Feature Flags (v2.0.0)
+
+Control feature behavior via environment variables:
+```bash
+# Enable/disable specific features
+NEXT_PUBLIC_FEATURE_SWR_BUDGET=true    # SWR for budget data
+NEXT_PUBLIC_FEATURE_SWR_SETTINGS=true  # SWR for user settings
+NEXT_PUBLIC_FEATURE_SWR_CATEGORIES=true # SWR for categories
+NEXT_PUBLIC_FEATURE_OPTIMISTIC=true    # Instant UI feedback
+NEXT_PUBLIC_FEATURE_REALTIME=true      # 10s auto-refresh
+```
+
+## 📚 Documentation
+
+- [Deployment Flow](memory/brc-deployment-flow.md)
+- [Migration Guide](docs/MIGRATION.md)
+- [Release Notes](RELEASE_NOTES.md)
 
 ## Security
 
