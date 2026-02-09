@@ -220,12 +220,14 @@ export async function distributeBudget(
           limit = aiBudget.limit;
         } else {
           // Fallback to traditional method if AI didn't generate budget for this day
-          const availableBudget = currentBalance !== undefined ? Math.max(0, currentBalance) : Math.max(0, remainingBudget);
+          // FIX: Always use remaining budget, not card balance (ignores already spent funds)
+          const availableBudget = Math.max(0, remainingBudget);
           limit = availableBudget / Math.max(futureDays.length, 1);
         }
       } else {
         // Traditional method when AI is disabled or failed
-        const availableBudget = currentBalance !== undefined ? Math.max(0, currentBalance) : Math.max(0, remainingBudget);
+        // FIX: Always use remaining budget, not card balance (ignores already spent funds)
+        const availableBudget = Math.max(0, remainingBudget);
         limit = availableBudget / Math.max(futureDays.length, 1);
       }
     }
