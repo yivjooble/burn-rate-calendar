@@ -292,17 +292,12 @@ export function CategoriesPage() {
   // ============================================
   
   // Calculate total expenses first (used by multiple hooks)
-  const totalExpenses = useMemo(() => {
-    return categoryData.reduce((sum, c) => sum + c.total, 0);
-  }, [categoryData]);
+  const totalExpenses = useMemo(() => categoryData.reduce((sum, c) => sum + c.total, 0), [categoryData]);
   
   // Calculate category budgets with progress tracking
   const categoryBudgets = useMemo((): CategoryBudget[] => {
     if (categoryData.length === 0) return [];
-    
-    // Use total expenses as budget baseline
     const totalBudget = totalExpenses * 1.2; // 20% buffer by default
-    
     return calculateCategoryBudgets(categoryData, totalBudget);
   }, [categoryData, totalExpenses]);
   
@@ -313,9 +308,7 @@ export function CategoriesPage() {
   }, [categoryData, totalExpenses]);
   
   // Overall trend vs previous period
-  const overallTrend = useMemo(() => {
-    return comparePeriods(totalExpenses, previousPeriodTotal);
-  }, [totalExpenses, previousPeriodTotal]);
+  const overallTrend = useMemo(() => comparePeriods(totalExpenses, previousPeriodTotal), [totalExpenses, previousPeriodTotal]);
 
   // Set default selected category
   useEffect(() => {

@@ -464,7 +464,7 @@ export function StatisticsView({ onRefresh, isLoading: externalLoading }: Statis
                   tickFormatter={(v: number) => `${(v / 1000).toFixed(0)}k`}
                 />
                 <Tooltip
-                  formatter={(value: number) => [
+                  formatter={(value: number): [string, string] => [
                     `${value.toLocaleString("uk-UA")} ₴`,
                     "Середнє"
                   ]}
