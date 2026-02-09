@@ -27,6 +27,7 @@ import {
   ResponsiveContainer,
   TooltipProps,
 } from "recharts";
+import { Payload } from "recharts/types/component/DefaultTooltipContent";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { DateRange } from "react-day-picker";
@@ -382,9 +383,9 @@ export function SpendingChart({ onRefresh, isLoading }: SpendingChartProps) {
                       `${Number(value ?? 0).toLocaleString("uk-UA")} ₴`,
                       name ?? ""
                     ]}
-                    itemSorter={(item: TooltipProps<number, string>) => {
+                    itemSorter={(item: Payload<number, string>) => {
                       const order: Record<string, number> = { "Доходи": 0, "Витрати": 1, "Баланс": 2 };
-                      return order[(item.name as string) ?? ""] ?? 99;
+                      return order[item.name as string] ?? 99;
                     }}
                     contentStyle={{
                       backgroundColor: "white",
