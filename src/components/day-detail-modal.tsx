@@ -320,7 +320,7 @@ export function DayDetailModal({ day, onClose, onExcludeTransaction }: DayDetail
                                 {transactionComments[tx.id] ? (
                                   <div className="flex items-center gap-1">
                                     <span className="text-xs text-muted-foreground italic">
-                                      "{transactionComments[tx.id]}"
+                                      &quot;{transactionComments[tx.id]}&quot;
                                     </span>
                                     <button
                                       onClick={() => startEditingComment(tx.id, transactionComments[tx.id])}
@@ -508,7 +508,7 @@ export function DayDetailModal({ day, onClose, onExcludeTransaction }: DayDetail
                               {transactionComments[tx.id] ? (
                                 <div className="flex items-center gap-1">
                                   <span className="text-xs text-muted-foreground italic">
-                                    "{transactionComments[tx.id]}"
+                                    &quot;{transactionComments[tx.id]}&quot;
                                   </span>
                                   <button
                                     onClick={() => startEditingComment(tx.id, transactionComments[tx.id])}

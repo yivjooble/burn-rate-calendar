@@ -40,6 +40,12 @@ export function BudgetCalendar({ dailyLimits, onDayClick, selectedMonth, onMonth
   const { transactions, excludedTransactionIds, settings } = useBudgetStore();
   const financialDayStart = settings.financialMonthStart || 1;
 
+  // Create stable Set reference for excludedTransactionIds to avoid React Compiler memoization issues
+  const excludedIdSet = useMemo(() => 
+    new Set(excludedTransactionIds), 
+    [excludedTransactionIds]
+  );
+
   const isCurrentFinancialMonth = isSameFinancialMonth(selectedMonth, new Date(), financialDayStart);
   
   // Use financial month calculations
@@ -90,7 +96,7 @@ export function BudgetCalendar({ dailyLimits, onDayClick, selectedMonth, onMonth
       // Check if transaction is within the financial month range
       if (txDate < financialMonthStart || txDate > financialMonthEnd) return;
       if (!isExpense(tx, transactions)) return;
-      if (excludedTransactionIds.includes(tx.id)) return;
+      if (excludedIdSet.has(tx.id)) return;
       
       const dateKey = format(txDate, "yyyy-MM-dd");
       const existing = dataMap.get(dateKey) || { spent: 0, transactions: [] };
@@ -100,7 +106,7 @@ export function BudgetCalendar({ dailyLimits, onDayClick, selectedMonth, onMonth
     });
     
     return dataMap;
-  }, [transactions, financialMonthStart, financialMonthEnd, excludedTransactionIds]);
+  }, [transactions, financialMonthStart, financialMonthEnd, excludedIdSet]);
 
   // Calculate average daily limit for historical months
   const avgDailyLimit = useMemo(() => {

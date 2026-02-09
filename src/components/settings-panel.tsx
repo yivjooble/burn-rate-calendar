@@ -542,7 +542,7 @@ export function SettingsPanel({ onSave }: SettingsPanelProps) {
           <div className="p-3 bg-muted rounded-lg">
             <p className="text-xs text-muted-foreground">
               Фінансовий місяць визначає, як розраховується ваш бюджет. 
-              Наприклад, якщо обрано "5 числа", то ваш фінансовий місяць триває з 5 числа поточного місяця по 4 числа наступного.
+              Наприклад, якщо обрано &quot;5 числа&quot;, то ваш фінансовий місяць триває з 5 числа поточного місяця по 4 числа наступного.
             </p>
           </div>
         </div>

@@ -27,18 +27,21 @@ describe('budget-ai.ts', () => {
     });
 
     it('should calculate spending patterns correctly', () => {
-      const now = Date.now();
+      // Use fixed dates to ensure consistent weekday/weekend calculations
+      // Feb 2026: 1st = Sunday, 2nd = Monday, 3rd = Tuesday
+      const baseTime = new Date('2026-02-03T12:00:00Z').getTime();
+      
       const transactions: Transaction[] = [
         createTransaction({
           id: '1',
-          time: Math.floor(now / 1000) - 86400,
+          time: Math.floor(baseTime / 1000),
           description: 'Grocery',
           amount: -5000,
           balance: 10000,
         }),
         createTransaction({
           id: '2',
-          time: Math.floor(now / 1000) - 86400 * 2,
+          time: Math.floor((baseTime - 86400) / 1000), // Tuesday - 1 day = Monday
           description: 'Another expense',
           amount: -3000,
           balance: 7000,

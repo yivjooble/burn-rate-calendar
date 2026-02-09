@@ -17,6 +17,15 @@ interface SpendingPattern {
   dayOfMonthMultipliers: number[];
 }
 
+interface AIBudgetResponse {
+  dailyBudgets: Array<{
+    date: string;
+    limit: number;
+    confidence: number;
+    reasoning: string;
+  }>;
+}
+
 export function analyzeSpendingPattern(
   transactions: Transaction[],
   includedTransactionIds?: string[]
@@ -143,7 +152,7 @@ export async function distributeBudget(
         const aiData = await aiResponse.json();
         
         // Convert AI budgets to DayBudget format
-        aiDailyLimits = aiData.dailyBudgets.map((aiBudget: any) => {
+        aiDailyLimits = aiData.dailyBudgets.map((aiBudget: AIBudgetResponse['dailyBudgets'][0]) => {
           const date = new Date(aiBudget.date);
           const dateKey = format(date, "yyyy-MM-dd");
           const dayTransactions = currentGrouped.get(dateKey) || [];

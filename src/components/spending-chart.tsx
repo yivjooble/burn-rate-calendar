@@ -348,7 +348,7 @@ export function SpendingChart({ onRefresh, isLoading }: SpendingChartProps) {
           {weeksData.length === 0 || historicalTransactions.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <Calendar className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p className="text-sm">Натисніть "Оновити" щоб завантажити дані</p>
+              <p className="text-sm">Натисніть &quot;Оновити&quot; щоб завантажити дані</p>
               {!settings.monoToken && (
                 <p className="text-xs mt-2 text-orange-500">Спочатку введіть токен Monobank в налаштуваннях</p>
               )}
