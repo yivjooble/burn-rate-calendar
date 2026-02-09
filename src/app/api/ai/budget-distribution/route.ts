@@ -144,7 +144,7 @@ function calculateSeasonalFactor(monthlyPatterns: Record<number, number>, curren
   return averageMonthlySpending > 0 ? currentMonthSpending / averageMonthlySpending : 1.0;
 }
 
-function generateAIBudgets(availableBudget: number, days: number, analysis: { dayOfWeekAverages: number[]; seasonalFactor: number; averageDailySpending: number; totalTransactions: number }, startDate: Date): DayBudget[] {
+function generateAIBudgets(availableBudget: number, days: number, analysis: { dayOfWeekAverages: Record<number, number>; seasonalFactor: number; averageDailySpending: number; totalTransactions: number }, startDate: Date): DayBudget[] {
   const { dayOfWeekAverages, seasonalFactor, averageDailySpending } = analysis;
 
   // Calculate base daily budget
