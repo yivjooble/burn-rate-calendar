@@ -139,7 +139,7 @@ export async function distributeBudget(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           totalBudget,
-          currentBalance,
+          remainingBudget,
           transactions: analysisTransactions,
           startDate: monthStart.toISOString().split('T')[0],
           endDate: monthEnd.toISOString().split('T')[0],
